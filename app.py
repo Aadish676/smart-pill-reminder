@@ -6,6 +6,10 @@ from flask_mail import Mail, Message
 from apscheduler.schedulers.background import BackgroundScheduler
 from datetime import datetime
 from dotenv import load_dotenv
+from flask_migrate import Migrate
+from yourapp import app, db  # adjust import to your app structure
+
+migrate = Migrate(app, db)
 
 load_dotenv()
 
