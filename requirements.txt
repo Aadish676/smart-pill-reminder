@@ -1,8 +1,7 @@
-flask
-flask-login
-werkzeug
-requests
+Flask
+Flask-SQLAlchemy
+Flask-Login
 python-dotenv
-apscheduler
+APScheduler
 gunicorn
-
+Werkzeug
