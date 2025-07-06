@@ -1,38 +1,59 @@
 <!DOCTYPE html>
 <html>
-<head><title>Dashboard</title></head>
+<head>
+    <title>Dashboard - Smart Pill Reminder</title>
+</head>
 <body>
-<h2>Welcome, {{ current_user.username }}</h2>
-<h3>Family Members</h3>
-<ul>
-{% for member in members %}
-  <li>
-    {{ member.name }} ({{ member.phone }}) - Notify via {{ member.notify_method }}
-    <form method="POST" action="/add_pill/{{ member.id }}">
-      Pill Name: <input name="pill_name"> Time (HH:MM): <input name="pill_time">
-      <input type="submit" value="Add Pill">
+    <h1>Welcome, {{ current_user.email }}</h1>
+    <a href="{{ url_for('logout') }}">Logout</a>
+
+    <h2>Add Family Member</h2>
+    <form action="{{ url_for('add_member') }}" method="POST">
+        <label>Name:</label><br>
+        <input type="text" name="name" required><br><br>
+
+        <label>Phone Number (with country code, e.g. +919999999999):</label><br>
+        <input type="text" name="phone" required><br><br>
+
+        <label>Notification Method:</label><br>
+        <select name="notify_method" required>
+            <option value="email">Email</option>
+            <option value="sms">SMS</option>
+            <option value="whatsapp">WhatsApp</option>
+        </select><br><br>
+
+        <button type="submit">Add Member</button>
     </form>
-    <ul>
-      {% for pill in member.pills %}
-        <li>{{ pill.name }} at {{ pill.time }} - {{ pill.status }}</li>
-      {% endfor %}
-    </ul>
-  </li>
-{% endfor %}
-</ul>
 
-<h3>Add Family Member</h3>
-<form method="POST" action="/add_member">
-  Name: <input name="name"> Phone: <input name="phone">
-  Notify via:
-  <select name="notify">
-    <option value="email">Email</option>
-    <option value="sms">SMS</option>
-    <option value="whatsapp">WhatsApp</option>
-  </select>
-  <input type="submit" value="Add">
-</form>
+    <h2>Family Members & Pills</h2>
+    {% for member in members %}
+        <div style="border:1px solid #ccc; padding:10px; margin-bottom:10px;">
+            <h3>{{ member.name }} ({{ member.notify_method }})</h3>
+            <p>Phone: {{ member.phone }}</p>
 
-<a href="/logout">Logout</a>
+            <h4>Assign Pill</h4>
+            <form action="{{ url_for('assign_pill', member_id=member.id) }}" method="POST">
+                <label>Pill Name:</label><br>
+                <input type="text" name="pill_name" required><br><br>
+
+                <label>Time (HH:MM - 24hr format):</label><br>
+                <input type="time" name="pill_time" required><br><br>
+
+                <button type="submit">Assign Pill</button>
+            </form>
+
+            <h4>Current Pills:</h4>
+            <ul>
+                {% for pill in member.pills %}
+                    <li>{{ pill.name }} at {{ pill.time }} ({{ pill.status }})</li>
+                {% else %}
+                    <li>No pills assigned.</li>
+                {% endfor %}
+            </ul>
+        </div>
+    {% else %}
+        <p>No family members added yet.</p>
+    {% endfor %}
 </body>
 </html>
+
