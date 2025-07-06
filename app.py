@@ -172,6 +172,11 @@ def send_reminders():
     with app.app_context():
         now = datetime.now().strftime("%H:%M")
         due_pills = Pill.query.filter_by(time=now, status='pending').all()
+
+        if not due_pills:
+            print(f"[{now}] No pills due.")
+            return
+
         for pill in due_pills:
             member = pill.member
             user = member.owner
@@ -181,21 +186,32 @@ def send_reminders():
             if user.email:
                 try:
                     mail.send(Message('Pill Reminder', recipients=[user.email], body=msg_body))
+                    print(f"[{now}] Email sent to {user.email}")
                 except Exception as e:
-                    print("Email failed:", e)
+                    print(f"[{now}] Email failed for {user.email}:", e)
 
             # WhatsApp/SMS
-            try:
-                twilio_client.messages.create(
-                    to=f"whatsapp:{member.phone}",  # or just phone for SMS
-                    from_=f"whatsapp:{TWILIO_PHONE_NUMBER}",
-                    body=msg_body
-                )
-            except Exception as e:
-                print("Twilio send failed:", e)
+            if member.phone:
+                try:
+                    if TWILIO_PHONE_NUMBER.startswith("whatsapp:"):
+                        to_number = f"whatsapp:{member.phone}"
+                    else:
+                        to_number = member.phone
 
-            pill.status = 'done'
-            db.session.commit()
+                    twilio_client.messages.create(
+                        to=to_number,
+                        from_=TWILIO_PHONE_NUMBER,
+                        body=msg_body
+                    )
+                    print(f"[{now}] Twilio message sent to {to_number}")
+                except Exception as e:
+                    print(f"[{now}] Twilio send failed to {member.phone}:", e)
+
+            try:
+                pill.status = 'done'
+                db.session.commit()
+            except Exception as e:
+                print(f"[{now}] Error updating status for {pill.name}:", e)
 
 # Create tables BEFORE starting scheduler
 with app.app_context():
