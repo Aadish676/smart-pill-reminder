@@ -1,32 +1,21 @@
 import os
 from flask import Flask, render_template, redirect, url_for, request, flash
 from flask_sqlalchemy import SQLAlchemy
-from flask_login import LoginManager, login_user, login_required, logout_user, UserMixin, current_user
+from flask_login import LoginManager, login_user, logout_user, login_required, current_user, UserMixin
 from flask_mail import Mail, Message
 from apscheduler.schedulers.background import BackgroundScheduler
-from datetime import datetime
 from dotenv import load_dotenv
+from datetime import datetime
 import atexit
 
 # Load environment variables
 load_dotenv()
 
+# Flask app init
 app = Flask(__name__)
-app.secret_key = os.getenv('SECRET_KEY', 'defaultsecret')
-
-# Database setup
+app.secret_key = os.getenv("SECRET_KEY", "defaultsecret")
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///pillpal.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-db = SQLAlchemy(app)
-
-# Create DB tables on app start (NO migration needed)
-with app.app_context():
-    db.create_all()
-
-# Flask-Login setup
-login_manager = LoginManager()
-login_manager.init_app(app)
-login_manager.login_view = 'login'
 
 # Mail config
 app.config['MAIL_SERVER'] = 'smtp.gmail.com'
@@ -36,7 +25,12 @@ app.config['MAIL_USERNAME'] = os.getenv("MAIL_USERNAME")
 app.config['MAIL_PASSWORD'] = os.getenv("MAIL_PASSWORD")
 mail = Mail(app)
 
-# Twilio placeholders
+# DB + Login Manager
+db = SQLAlchemy(app)
+login_manager = LoginManager(app)
+login_manager.login_view = 'login'
+
+# Mock Twilio creds
 TWILIO_SID = os.getenv("TWILIO_SID")
 TWILIO_AUTH = os.getenv("TWILIO_AUTH")
 TWILIO_PHONE = os.getenv("TWILIO_PHONE")
@@ -59,16 +53,17 @@ class FamilyMember(db.Model):
 class Pill(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(100))
-    time = db.Column(db.String(10))  # HH:MM format
+    time = db.Column(db.String(10))  # Format: HH:MM
     status = db.Column(db.String(20), default='pending')
     member_id = db.Column(db.Integer, db.ForeignKey('family_member.id'), nullable=False)
 
-# Login loader
+# User loader
 @login_manager.user_loader
 def load_user(user_id):
     return User.query.get(int(user_id))
 
-# Routes
+# -------------------- Routes ----------------------
+
 @app.route('/')
 @login_required
 def home():
@@ -83,18 +78,20 @@ def register():
         if User.query.filter_by(email=email).first():
             flash('Email already registered.')
             return redirect(url_for('register'))
-        user = User(email=email, password=password)
-        db.session.add(user)
+        new_user = User(email=email, password=password)
+        db.session.add(new_user)
         db.session.commit()
-        flash('Registered! Now log in.')
+        flash('Registered successfully!')
         return redirect(url_for('login'))
     return render_template('register.html')
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     if request.method == 'POST':
-        user = User.query.filter_by(email=request.form['email']).first()
-        if user and user.password == request.form['password']:
+        email = request.form['email']
+        password = request.form['password']
+        user = User.query.filter_by(email=email).first()
+        if user and user.password == password:
             login_user(user)
             return redirect(url_for('home'))
         flash('Invalid credentials')
@@ -109,10 +106,12 @@ def logout():
 @app.route('/add_member', methods=['POST'])
 @login_required
 def add_member():
-    name = request.form['name']
-    phone = request.form['phone']
-    relation = request.form['relation']
-    member = FamilyMember(name=name, phone=phone, relation=relation, user_id=current_user.id)
+    member = FamilyMember(
+        name=request.form['name'],
+        phone=request.form['phone'],
+        relation=request.form['relation'],
+        user_id=current_user.id
+    )
     db.session.add(member)
     db.session.commit()
     return redirect(url_for('home'))
@@ -120,44 +119,54 @@ def add_member():
 @app.route('/add_pill/<int:member_id>', methods=['POST'])
 @login_required
 def add_pill(member_id):
-    name = request.form['pill_name']
-    time = request.form['pill_time']
-    pill = Pill(name=name, time=time, member_id=member_id)
+    pill = Pill(
+        name=request.form['pill_name'],
+        time=request.form['pill_time'],
+        member_id=member_id
+    )
     db.session.add(pill)
     db.session.commit()
     return redirect(url_for('home'))
 
-# Pill Reminder Function
+# -------------------- Reminder Function ----------------------
+
 def send_reminders():
     now = datetime.now().strftime("%H:%M")
-    pills = Pill.query.filter_by(time=now, status='pending').all()
-    for pill in pills:
-        member = pill.member
-        user = member.owner
-        msg = f"Reminder: {member.name} should take {pill.name} now."
-
-        # Send email
+    due_pills = Pill.query.filter_by(time=now, status='pending').all()
+    for pill in due_pills:
+        user = pill.member.owner
+        msg_body = f"Reminder: {pill.member.name} should take {pill.name} now."
+        
+        # Email
         if user.email:
             try:
-                mail.send(Message('Pill Reminder', recipients=[user.email], body=msg))
+                msg = Message("Pill Reminder", recipients=[user.email], body=msg_body)
+                mail.send(msg)
             except Exception as e:
-                print("Email send failed:", e)
+                print("Failed to send email:", e)
 
-        # Mock SMS/WhatsApp
-        print(f"Would send SMS/WhatsApp to {member.phone}: {msg}")
+        # Mock Twilio
+        print(f"Would send WhatsApp/SMS to {pill.member.phone}: {msg_body}")
 
         pill.status = 'done'
         db.session.commit()
 
-# Schedule reminder check every minute
+# Scheduler
 scheduler = BackgroundScheduler()
-scheduler.add_job(func=send_reminders, trigger="interval", seconds=60)
+scheduler.add_job(send_reminders, 'interval', seconds=60)
 scheduler.start()
-
-# Shutdown scheduler on exit
 atexit.register(lambda: scheduler.shutdown())
 
-# Run app
-if __name__ == '__main__':
-    app.run(debug=True)
+# -------------------- DB Init Route (Temporary) ----------------------
 
+@app.route('/init_db')
+def init_db():
+    db.create_all()
+    return "✅ Database initialized successfully!"
+
+# -------------------- Main ----------------------
+
+if __name__ == '__main__':
+    with app.app_context():
+        db.create_all()
+    app.run(debug=True)
