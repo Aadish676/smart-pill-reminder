@@ -1,0 +1,8 @@
+{% extends "base.html" %}
+{% block content %}
+<h2>OCR Extraction Result</h2>
+<p>The extracted text from your prescription is:</p>
+<pre style="background:#eee; padding:15px;">{{ extracted_text }}</pre>
+<p>This is a mocked OCR result. You can extend this to integrate real OCR processing.</p>
+<a href="{{ url_for('home') }}" class="btn btn-primary">Back to Dashboard</a>
+{% endblock %}
