@@ -1,11 +1,10 @@
-from flask import Flask, request, jsonify, render_template, redirect, url_for
+from flask import Flask, request, jsonify, render_template, redirect
 from flask_cors import CORS
 from werkzeug.utils import secure_filename
 from datetime import datetime
 import sqlite3
 import os
-import pytesseract
-from PIL import Image
+import requests
 
 app = Flask(__name__)
 CORS(app)
@@ -14,7 +13,11 @@ UPLOAD_FOLDER = 'uploads'
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 
-# Initialize DB
+# Use test key or your own from https://ocr.space/ocrapi
+OCR_API_KEY = 'helloworld'
+
+# ------------------ DATABASE INIT ------------------
+
 def init_db():
     conn = sqlite3.connect('pills.db')
     c = conn.cursor()
@@ -32,13 +35,21 @@ def init_db():
 
 init_db()
 
-@app.route('/')
-def index():
+# ------------------ UTILITY ------------------
+
+def get_pills():
     conn = sqlite3.connect('pills.db')
     c = conn.cursor()
     c.execute("SELECT * FROM pills ORDER BY time")
     pills = c.fetchall()
     conn.close()
+    return pills
+
+# ------------------ ROUTES ------------------
+
+@app.route('/')
+def index():
+    pills = get_pills()
     return render_template('index.html', pills=pills)
 
 @app.route('/add', methods=['POST'])
@@ -65,15 +76,25 @@ def ocr_extract():
     filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
     file.save(filepath)
 
-    text = pytesseract.image_to_string(Image.open(filepath))
-    lines = [line.strip() for line in text.split('\n') if line.strip()]
+    # OCR.space API call
+    with open(filepath, 'rb') as img:
+        response = requests.post(
+            'https://api.ocr.space/parse/image',
+            files={'filename': img},
+            data={'apikey': OCR_API_KEY, 'language': 'eng'}
+        )
+
+    try:
+        result = response.json()
+        text = result['ParsedResults'][0]['ParsedText']
+        lines = [line.strip() for line in text.split('\n') if line.strip()]
+    except Exception as e:
+        lines = [f"OCR failed: {str(e)}"]
+
     return render_template("index.html", pills=get_pills(), ocr_lines=lines)
 
-def get_pills():
-    conn = sqlite3.connect('pills.db')
-    c = conn.cursor()
-    c.execute("SELECT * FROM pills ORDER BY time")
-    pills = c.fetchall()
-    conn.close()
-    return pills
+# ------------------ ENTRY ------------------
+
+if __name__ == "__main__":
+    app.run(debug=True)
 
