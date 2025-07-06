@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Smart Pill Reminder</title>
+</head>
+<body>
+    <h1>💊 Smart Pill Reminder</h1>
+
+    <form method="POST" action="/add">
+        <input type="text" name="pill_name" placeholder="Pill Name" required>
+        <input type="time" name="pill_time" required>
+        <button type="submit">Add Pill</button>
+    </form>
+
+    <form method="POST" action="/ocr" enctype="multipart/form-data">
+        <input type="file" name="prescription" accept="image/*" required>
+        <button type="submit">Scan Prescription</button>
+    </form>
+
+    {% if ocr_lines %}
+        <h3>📄 Extracted from Prescription:</h3>
+        <ul>
+        {% for line in ocr_lines %}
+            <li>{{ line }}</li>
+        {% endfor %}
+        </ul>
+    {% endif %}
+
+    <h2>🕒 Pill Reminders:</h2>
+    {% if pills %}
+        <ul>
+        {% for pill in pills %}
+            <li><b>{{ pill[1] }}</b> at {{ pill[2] }} – {{ pill[3] }}</li>
+        {% endfor %}
+        </ul>
+    {% else %}
+        <p>No pills added.</p>
+    {% endif %}
+</body>
+</html>
