@@ -118,22 +118,22 @@ def add_pill(member_id):
     return redirect(url_for('dashboard'))
 
 # Scheduler to send reminders
-scheduler = BackgroundScheduler()
-
 @scheduler.scheduled_job('interval', minutes=1)
 def send_reminders():
-    now = datetime.datetime.now().strftime('%H:%M')
-    pills = Pill.query.filter_by(time=now, status='pending').all()
-    for pill in pills:
-        member = pill.member
-        msg = f"Reminder: {member.name}, take your pill: {pill.name} at {pill.time}."
-        if member.notify_method == 'email':
-            send_email_mock(member.user.email, "Pill Reminder", msg)
-        elif member.notify_method == 'sms':
-            send_sms_mock(member.phone, msg)
-        elif member.notify_method == 'whatsapp':
-            send_whatsapp_mock(member.phone, msg)
-        pill.status = 'notified'
+    with app.app_context():
+        now = datetime.datetime.now().strftime('%H:%M')
+        pills = Pill.query.filter_by(time=now, status='pending').all()
+        for pill in pills:
+            member = pill.member
+            msg = f"Reminder: {member.name}, take your pill: {pill.name} at {pill.time}."
+            if member.notify_method == 'email':
+                send_email_mock(member.user.email, "Pill Reminder", msg)
+            elif member.notify_method == 'sms':
+                send_sms_mock(member.phone, msg)
+            elif member.notify_method == 'whatsapp':
+                send_whatsapp_mock(member.phone, msg)
+            pill.status = 'notified'
+        db.session.commit()
         db.session.commit()
 
 scheduler.start()
