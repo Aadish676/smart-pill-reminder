@@ -1,19 +1,21 @@
 import os
-from flask import Flask, render_template, redirect, url_for, request, flash
+from flask import Flask, render_template, redirect, url_for, request, session, flash
 from flask_sqlalchemy import SQLAlchemy
-from flask_login import LoginManager, login_user, logout_user, login_required, current_user, UserMixin
+from flask_login import LoginManager, login_user, login_required, logout_user, UserMixin, current_user
 from flask_mail import Mail, Message
 from apscheduler.schedulers.background import BackgroundScheduler
-from dotenv import load_dotenv
 from datetime import datetime
+from dotenv import load_dotenv
 import atexit
 
 # Load environment variables
 load_dotenv()
 
-# Flask app init
+# Flask app setup
 app = Flask(__name__)
-app.secret_key = os.getenv("SECRET_KEY", "defaultsecret")
+app.secret_key = os.getenv('SECRET_KEY', 'defaultsecret')
+
+# Database setup
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///pillpal.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
@@ -23,17 +25,22 @@ app.config['MAIL_PORT'] = 587
 app.config['MAIL_USE_TLS'] = True
 app.config['MAIL_USERNAME'] = os.getenv("MAIL_USERNAME")
 app.config['MAIL_PASSWORD'] = os.getenv("MAIL_PASSWORD")
-mail = Mail(app)
 
-# DB + Login Manager
+# Initialize extensions
 db = SQLAlchemy(app)
-login_manager = LoginManager(app)
+mail = Mail(app)
+login_manager = LoginManager()
+login_manager.init_app(app)
 login_manager.login_view = 'login'
 
-# Mock Twilio creds
+# Twilio (mocked)
 TWILIO_SID = os.getenv("TWILIO_SID")
 TWILIO_AUTH = os.getenv("TWILIO_AUTH")
 TWILIO_PHONE = os.getenv("TWILIO_PHONE")
+
+# Create tables on app start
+with app.app_context():
+    db.create_all()
 
 # Models
 class User(UserMixin, db.Model):
@@ -53,17 +60,16 @@ class FamilyMember(db.Model):
 class Pill(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(100))
-    time = db.Column(db.String(10))  # Format: HH:MM
+    time = db.Column(db.String(10))  # in HH:MM format
     status = db.Column(db.String(20), default='pending')
     member_id = db.Column(db.Integer, db.ForeignKey('family_member.id'), nullable=False)
 
-# User loader
+# Flask-Login loader
 @login_manager.user_loader
 def load_user(user_id):
     return User.query.get(int(user_id))
 
-# -------------------- Routes ----------------------
-
+# Routes
 @app.route('/')
 @login_required
 def home():
@@ -78,20 +84,18 @@ def register():
         if User.query.filter_by(email=email).first():
             flash('Email already registered.')
             return redirect(url_for('register'))
-        new_user = User(email=email, password=password)
-        db.session.add(new_user)
+        user = User(email=email, password=password)
+        db.session.add(user)
         db.session.commit()
-        flash('Registered successfully!')
+        flash('Registered! Now log in.')
         return redirect(url_for('login'))
     return render_template('register.html')
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     if request.method == 'POST':
-        email = request.form['email']
-        password = request.form['password']
-        user = User.query.filter_by(email=email).first()
-        if user and user.password == password:
+        user = User.query.filter_by(email=request.form['email']).first()
+        if user and user.password == request.form['password']:
             login_user(user)
             return redirect(url_for('home'))
         flash('Invalid credentials')
@@ -106,12 +110,10 @@ def logout():
 @app.route('/add_member', methods=['POST'])
 @login_required
 def add_member():
-    member = FamilyMember(
-        name=request.form['name'],
-        phone=request.form['phone'],
-        relation=request.form['relation'],
-        user_id=current_user.id
-    )
+    name = request.form['name']
+    phone = request.form['phone']
+    relation = request.form['relation']
+    member = FamilyMember(name=name, phone=phone, relation=relation, user_id=current_user.id)
     db.session.add(member)
     db.session.commit()
     return redirect(url_for('home'))
@@ -119,19 +121,16 @@ def add_member():
 @app.route('/add_pill/<int:member_id>', methods=['POST'])
 @login_required
 def add_pill(member_id):
-    pill = Pill(
-        name=request.form['pill_name'],
-        time=request.form['pill_time'],
-        member_id=member_id
-    )
+    name = request.form['pill_name']
+    time = request.form['pill_time']
+    pill = Pill(name=name, time=time, member_id=member_id)
     db.session.add(pill)
     db.session.commit()
     return redirect(url_for('home'))
 
-# -------------------- Reminder Function ----------------------
-
+# Reminder function
 def send_reminders():
-    with app.app_context():  # <-- Fixes the application context error
+    with app.app_context():
         now = datetime.now().strftime("%H:%M")
         due_pills = Pill.query.filter_by(time=now, status='pending').all()
         for pill in due_pills:
@@ -146,35 +145,18 @@ def send_reminders():
                 except Exception as e:
                     print("Email send failed:", e)
 
-            # Mock Twilio (print only)
+            # Mock Twilio send
             print(f"Would send SMS/WhatsApp to {member.phone}: {msg}")
 
             pill.status = 'done'
             db.session.commit()
 
-
-        # Mock Twilio
-        print(f"Would send WhatsApp/SMS to {pill.member.phone}: {msg_body}")
-
-        pill.status = 'done'
-        db.session.commit()
-
-# Scheduler
+# Schedule reminder every minute
 scheduler = BackgroundScheduler()
-scheduler.add_job(send_reminders, 'interval', seconds=60)
+scheduler.add_job(func=send_reminders, trigger="interval", seconds=60)
 scheduler.start()
 atexit.register(lambda: scheduler.shutdown())
 
-# -------------------- DB Init Route (Temporary) ----------------------
-
-@app.route('/init_db')
-def init_db():
-    db.create_all()
-    return "✅ Database initialized successfully!"
-
-# -------------------- Main ----------------------
-
+# Run server
 if __name__ == '__main__':
-    with app.app_context():
-        db.create_all()
     app.run(debug=True)
