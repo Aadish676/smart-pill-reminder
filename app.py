@@ -1,14 +1,14 @@
 import os
-from flask import Flask, render_template, redirect, url_for, request, session, flash
+from flask import Flask, render_template, redirect, url_for, request, flash
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager, login_user, login_required, logout_user, UserMixin, current_user
 from flask_mail import Mail, Message
 from apscheduler.schedulers.background import BackgroundScheduler
 from datetime import datetime
 from dotenv import load_dotenv
-from flask_migrate import Migrate, upgrade
-import atexit
+from flask_migrate import Migrate
 
+# Load environment variables from .env
 load_dotenv()
 
 app = Flask(__name__)
@@ -19,7 +19,7 @@ app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///pillpal.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 db = SQLAlchemy(app)
 
-# Migrate support
+# Flask-Migrate
 migrate = Migrate(app, db)
 
 # Flask-Login setup
@@ -35,10 +35,10 @@ app.config['MAIL_USERNAME'] = os.getenv("MAIL_USERNAME")
 app.config['MAIL_PASSWORD'] = os.getenv("MAIL_PASSWORD")
 mail = Mail(app)
 
-# Twilio (mocked for now)
-TWILIO_SID = os.getenv("TWILIO_SID")
-TWILIO_AUTH = os.getenv("TWILIO_AUTH")
-TWILIO_PHONE = os.getenv("TWILIO_PHONE")
+# Twilio mock env vars (set as 'mock' if not real)
+TWILIO_SID = os.getenv("TWILIO_SID", "mock")
+TWILIO_AUTH = os.getenv("TWILIO_AUTH", "mock")
+TWILIO_PHONE = os.getenv("TWILIO_PHONE", "mock")
 
 # Models
 class User(UserMixin, db.Model):
@@ -58,7 +58,7 @@ class FamilyMember(db.Model):
 class Pill(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(100))
-    time = db.Column(db.String(10))  # in HH:MM format
+    time = db.Column(db.String(10))  # HH:MM format
     status = db.Column(db.String(20), default='pending')
     member_id = db.Column(db.Integer, db.ForeignKey('family_member.id'), nullable=False)
 
@@ -67,15 +67,97 @@ class Pill(db.Model):
 def load_user(user_id):
     return User.query.get(int(user_id))
 
-# Routes and other code ...
+# Routes
 
-# Reminder function and scheduler ...
+@app.route('/')
+@login_required
+def home():
+    members = FamilyMember.query.filter_by(user_id=current_user.id).all()
+    return render_template('dashboard.html', members=members)
 
-# Shutdown scheduler properly
+@app.route('/register', methods=['GET', 'POST'])
+def register():
+    if request.method == 'POST':
+        email = request.form['email']
+        password = request.form['password']
+        if User.query.filter_by(email=email).first():
+            flash('Email already registered.')
+            return redirect(url_for('register'))
+        user = User(email=email, password=password)  # TODO: hash passwords in production!
+        db.session.add(user)
+        db.session.commit()
+        flash('Registered! Please log in.')
+        return redirect(url_for('login'))
+    return render_template('register.html')
+
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    if request.method == 'POST':
+        user = User.query.filter_by(email=request.form['email']).first()
+        if user and user.password == request.form['password']:
+            login_user(user)
+            return redirect(url_for('home'))
+        flash('Invalid email or password.')
+    return render_template('login.html')
+
+@app.route('/logout')
+@login_required
+def logout():
+    logout_user()
+    return redirect(url_for('login'))
+
+@app.route('/add_member', methods=['POST'])
+@login_required
+def add_member():
+    name = request.form['name']
+    phone = request.form['phone']
+    relation = request.form['relation']
+    member = FamilyMember(name=name, phone=phone, relation=relation, user_id=current_user.id)
+    db.session.add(member)
+    db.session.commit()
+    return redirect(url_for('home'))
+
+@app.route('/add_pill/<int:member_id>', methods=['POST'])
+@login_required
+def add_pill(member_id):
+    name = request.form['pill_name']
+    time = request.form['pill_time']
+    pill = Pill(name=name, time=time, member_id=member_id)
+    db.session.add(pill)
+    db.session.commit()
+    return redirect(url_for('home'))
+
+# Reminder function
+def send_reminders():
+    now = datetime.now().strftime("%H:%M")
+    pills = Pill.query.filter_by(time=now, status='pending').all()
+    for pill in pills:
+        member = pill.member
+        user = member.owner
+        msg = f"Reminder: {member.name} should take {pill.name} now."
+
+        # Send email
+        if user.email:
+            try:
+                mail.send(Message('Pill Reminder', recipients=[user.email], body=msg))
+            except Exception as e:
+                print("Email send failed:", e)
+
+        # Mock Twilio send (replace with real integration later)
+        print(f"Would send SMS/WhatsApp to {member.phone}: {msg}")
+
+        pill.status = 'done'
+        db.session.commit()
+
+# Schedule reminder job every minute
+scheduler = BackgroundScheduler()
+scheduler.add_job(func=send_reminders, trigger="interval", seconds=60)
+scheduler.start()
+
+import atexit
 atexit.register(lambda: scheduler.shutdown())
 
-# Run the migrations only when running locally directly
 if __name__ == '__main__':
-    with app.app_context():
-        upgrade()  # This runs your migration scripts and creates tables if needed
+    print(app.url_map)  # Print all routes for debug
     app.run(debug=True)
+
