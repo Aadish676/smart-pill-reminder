@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+{% block content %}
+<h2>Your Family Members</h2>
+
+<table class="table table-bordered">
+  <thead>
+    <tr>
+      <th>Name</th>
+      <th>Phone</th>
+      <th>Relation</th>
+      <th>Pills</th>
+      <th>Add Pill</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for member in members %}
+    <tr>
+      <td>{{ member.name }}</td>
+      <td>{{ member.phone }}</td>
+      <td>{{ member.relation }}</td>
+      <td>
+        <ul>
+          {% for pill in member.pills %}
+            <li>{{ pill.name }} at {{ pill.time }} - {{ pill.status }}</li>
+          {% else %}
+            <li>No pills added</li>
+          {% endfor %}
+        </ul>
+      </td>
+      <td>
+        <form method="POST" action="{{ url_for('add_pill', member_id=member.id) }}">
+          <input type="text" name="pill_name" placeholder="Pill Name" required class="form-control mb-1" />
+          <input type="time" name="pill_time" required class="form-control mb-1" />
+          <button type="submit" class="btn btn-primary btn-sm">Add</button>
+        </form>
+      </td>
+    </tr>
+    {% else %}
+    <tr><td colspan="5">No family members added yet.</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+
+<h3>Add Family Member</h3>
+<form method="POST" action="{{ url_for('add_member') }}">
+  <div class="mb-3">
+    <input type="text" name="name" placeholder="Name" required class="form-control" />
+  </div>
+  <div class="mb-3">
+    <input type="text" name="phone" placeholder="Phone Number" required class="form-control" />
+  </div>
+  <div class="mb-3">
+    <input type="text" name="relation" placeholder="Relation" required class="form-control" />
+  </div>
+  <button type="submit" class="btn btn-success">Add Member</button>
+</form>
+
+<h3 class="mt-5">Upload Prescription (OCR)</h3>
+<form method="POST" action="{{ url_for('upload_prescription') }}" enctype="multipart/form-data">
+  <input type="file" name="prescription" accept="image/*,.pdf" required class="form-control mb-2" />
+  <button type="submit" class="btn btn-info">Upload & Extract</button>
+</form>
+{% endblock %}
