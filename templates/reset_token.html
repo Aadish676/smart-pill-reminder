@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Reset Password</title>
+  <style>
+    body { font-family: Arial, sans-serif; padding: 2rem; background: #f4f7f8; }
+    form { max-width: 400px; margin: auto; background: white; padding: 2rem; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1);}
+    input[type="password"] { width: 100%; padding: 0.5rem; margin-bottom: 1rem; }
+    button { width: 100%; padding: 0.7rem; background-color: #28a745; color: white; border: none; border-radius: 4px; cursor: pointer; }
+    button:hover { background-color: #1e7e34; }
+    a { display: block; margin-top: 1rem; text-align: center; color: #007bff; text-decoration: none; }
+    a:hover { text-decoration: underline; }
+  </style>
+</head>
+<body>
+  <h2 style="text-align:center;">Set New Password</h2>
+
+  {% with messages = get_flashed_messages() %}
+    {% if messages %}
+      <div style="color: red; margin-bottom: 1rem;">{{ messages[0] }}</div>
+    {% endif %}
+  {% endwith %}
+
+  <form method="POST" action="{{ url_for('reset_token', token=token) }}">
+    <input type="password" name="password" placeholder="New Password" required autofocus />
+    <input type="password" name="confirm_password" placeholder="Confirm Password" required />
+    <button type="submit">Reset Password</button>
+  </form>
+
+  <a href="{{ url_for('login') }}">Back to Login</a>
+</body>
+</html>
