@@ -1,4 +1,8 @@
 flask
-flask-cors
+flask-login
+werkzeug
 requests
+python-dotenv
+apscheduler
 gunicorn
+
