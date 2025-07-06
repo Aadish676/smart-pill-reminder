@@ -1,33 +1,66 @@
-from flask import Flask, request, jsonify, render_template, redirect
-from flask_cors import CORS
+from flask import Flask, render_template, request, redirect, url_for, flash, abort
+from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
+from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
-from datetime import datetime
 import sqlite3
 import os
 import requests
+import smtplib
+from email.mime.text import MIMEText
+from itsdangerous import URLSafeTimedSerializer, SignatureExpired, BadSignature
 
+# ---- CONFIG ----
 app = Flask(__name__)
-CORS(app)
+app.secret_key = 'your-very-secret-key'  # CHANGE THIS in prod
 
 UPLOAD_FOLDER = 'uploads'
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 
-# Use test key or your own from https://ocr.space/ocrapi
+# Flask-Login Setup
+login_manager = LoginManager()
+login_manager.login_view = 'login'
+login_manager.init_app(app)
+
+# OCR API key
 OCR_API_KEY = 'helloworld'
 
-# ------------------ DATABASE INIT ------------------
+# Email config (Gmail SMTP example)
+SMTP_SERVER = 'smtp.gmail.com'
+SMTP_PORT = 587
+SENDER_EMAIL = 'YOUR_EMAIL@gmail.com'           # CHANGE this
+SENDER_PASSWORD = 'YOUR_APP_PASSWORD'            # CHANGE this
+
+# Token serializer for password reset
+serializer = URLSafeTimedSerializer(app.secret_key)
+
+# ---- DATABASE HELPERS ----
+
+def get_db_connection():
+    conn = sqlite3.connect('pills.db')
+    conn.row_factory = sqlite3.Row
+    return conn
 
 def init_db():
-    conn = sqlite3.connect('pills.db')
+    conn = get_db_connection()
     c = conn.cursor()
+    c.execute('''
+        CREATE TABLE IF NOT EXISTS users (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            username TEXT UNIQUE NOT NULL,
+            email TEXT UNIQUE NOT NULL,
+            password_hash TEXT NOT NULL
+        )
+    ''')
     c.execute('''
         CREATE TABLE IF NOT EXISTS pills (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER,
             name TEXT,
             time TEXT,
             status TEXT DEFAULT 'pending',
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (user_id) REFERENCES users (id)
         )
     ''')
     conn.commit()
@@ -35,48 +68,87 @@ def init_db():
 
 init_db()
 
-# ------------------ UTILITY ------------------
+# ---- USER MODEL ----
 
-def get_pills():
-    conn = sqlite3.connect('pills.db')
-    c = conn.cursor()
-    c.execute("SELECT * FROM pills ORDER BY time")
-    pills = c.fetchall()
+class User(UserMixin):
+    def __init__(self, id_, username, email, password_hash):
+        self.id = id_
+        self.username = username
+        self.email = email
+        self.password_hash = password_hash
+
+@login_manager.user_loader
+def load_user(user_id):
+    conn = get_db_connection()
+    user = conn.execute("SELECT * FROM users WHERE id = ?", (user_id,)).fetchone()
     conn.close()
-    return pills
+    if user:
+        return User(user['id'], user['username'], user['email'], user['password_hash'])
+    return None
 
-# ------------------ ROUTES ------------------
+# ---- EMAIL SENDER ----
+
+def send_email(to_email, subject, body):
+    msg = MIMEText(body)
+    msg['Subject'] = subject
+    msg['From'] = SENDER_EMAIL
+    msg['To'] = to_email
+
+    try:
+        server = smtplib.SMTP(SMTP_SERVER, SMTP_PORT)
+        server.starttls()
+        server.login(SENDER_EMAIL, SENDER_PASSWORD)
+        server.sendmail(SENDER_EMAIL, to_email, msg.as_string())
+        server.quit()
+        print(f"Email sent to {to_email}")
+    except Exception as e:
+        print(f"Email failed: {e}")
+
+# ---- EMAIL REMINDER (You can call this with scheduler) ----
+
+def send_pill_reminder(to_email, pill_name, pill_time):
+    subject = 'Pill Reminder'
+    body = f"Reminder: Take your pill '{pill_name}' at {pill_time}."
+    send_email(to_email, subject, body)
+
+# ---- ROUTES ----
 
 @app.route('/')
+@login_required
 def index():
-    pills = get_pills()
+    conn = get_db_connection()
+    pills = conn.execute("SELECT * FROM pills WHERE user_id = ? ORDER BY time", (current_user.id,)).fetchall()
+    conn.close()
     return render_template('index.html', pills=pills)
 
 @app.route('/add', methods=['POST'])
+@login_required
 def add_pill():
     name = request.form['pill_name']
     time = request.form['pill_time']
-    conn = sqlite3.connect('pills.db')
-    c = conn.cursor()
-    c.execute("INSERT INTO pills (name, time) VALUES (?, ?)", (name, time))
+    conn = get_db_connection()
+    conn.execute("INSERT INTO pills (user_id, name, time) VALUES (?, ?, ?)", (current_user.id, name, time))
     conn.commit()
     conn.close()
-    return redirect('/')
+    flash("Pill added successfully!")
+    return redirect(url_for('index'))
 
 @app.route('/ocr', methods=['POST'])
+@login_required
 def ocr_extract():
     if 'prescription' not in request.files:
-        return "No file", 400
+        flash("No file uploaded")
+        return redirect(url_for('index'))
 
     file = request.files['prescription']
     if file.filename == '':
-        return "Empty filename", 400
+        flash("Empty filename")
+        return redirect(url_for('index'))
 
     filename = secure_filename(file.filename)
     filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
     file.save(filepath)
 
-    # OCR.space API call
     with open(filepath, 'rb') as img:
         response = requests.post(
             'https://api.ocr.space/parse/image',
@@ -91,10 +163,113 @@ def ocr_extract():
     except Exception as e:
         lines = [f"OCR failed: {str(e)}"]
 
-    return render_template("index.html", pills=get_pills(), ocr_lines=lines)
+    conn = get_db_connection()
+    pills = conn.execute("SELECT * FROM pills WHERE user_id = ? ORDER BY time", (current_user.id,)).fetchall()
+    conn.close()
 
-# ------------------ ENTRY ------------------
+    return render_template("index.html", pills=pills, ocr_lines=lines)
 
-if __name__ == "__main__":
+# ----- AUTH ROUTES -----
+
+@app.route('/register', methods=['GET', 'POST'])
+def register():
+    if request.method == 'POST':
+        username = request.form['username'].strip()
+        email = request.form['email'].strip()
+        password = request.form['password']
+
+        if not username or not password or not email:
+            flash('Please fill all fields')
+            return redirect(url_for('register'))
+
+        conn = get_db_connection()
+        existing_user = conn.execute("SELECT * FROM users WHERE username = ? OR email = ?", (username, email)).fetchone()
+        if existing_user:
+            flash('Username or email already taken')
+            conn.close()
+            return redirect(url_for('register'))
+
+        password_hash = generate_password_hash(password)
+        conn.execute("INSERT INTO users (username, email, password_hash) VALUES (?, ?, ?)", (username, email, password_hash))
+        conn.commit()
+        conn.close()
+        flash('Registration successful! Please login.')
+        return redirect(url_for('login'))
+
+    return render_template('register.html')
+
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    if request.method == 'POST':
+        username = request.form['username'].strip()
+        password = request.form['password']
+
+        conn = get_db_connection()
+        user = conn.execute("SELECT * FROM users WHERE username = ?", (username,)).fetchone()
+        conn.close()
+
+        if user and check_password_hash(user['password_hash'], password):
+            user_obj = User(user['id'], user['username'], user['email'], user['password_hash'])
+            login_user(user_obj)
+            flash('Logged in successfully!')
+            return redirect(url_for('index'))
+        else:
+            flash('Invalid username or password')
+            return redirect(url_for('login'))
+
+    return render_template('login.html')
+
+@app.route('/logout')
+@login_required
+def logout():
+    logout_user()
+    flash('Logged out.')
+    return redirect(url_for('login'))
+
+# ---- PASSWORD RESET FLOW ----
+
+@app.route('/reset_request', methods=['GET', 'POST'])
+def reset_request():
+    if request.method == 'POST':
+        email = request.form['email'].strip()
+        conn = get_db_connection()
+        user = conn.execute("SELECT * FROM users WHERE email = ?", (email,)).fetchone()
+        conn.close()
+        if user:
+            token = serializer.dumps(email, salt='password-reset-salt')
+            reset_url = url_for('reset_token', token=token, _external=True)
+            body = f"To reset your password, click the following link:\n\n{reset_url}\n\nIf you did not request a password reset, ignore this email."
+            send_email(email, "Password Reset Request", body)
+            flash('Password reset email sent! Check your inbox.')
+        else:
+            flash('Email not found.')
+        return redirect(url_for('login'))
+    return render_template('reset_request.html')
+
+@app.route('/reset_password/<token>', methods=['GET', 'POST'])
+def reset_token(token):
+    try:
+        email = serializer.loads(token, salt='password-reset-salt', max_age=3600)  # 1 hour expiry
+    except (SignatureExpired, BadSignature):
+        flash('The reset link is invalid or has expired.')
+        return redirect(url_for('reset_request'))
+
+    if request.method == 'POST':
+        password = request.form['password']
+        if not password:
+            flash('Please enter a new password.')
+            return redirect(url_for('reset_token', token=token))
+        password_hash = generate_password_hash(password)
+        conn = get_db_connection()
+        conn.execute("UPDATE users SET password_hash = ? WHERE email = ?", (password_hash, email))
+        conn.commit()
+        conn.close()
+        flash('Password has been reset! You can now login.')
+        return redirect(url_for('login'))
+
+    return render_template('reset_password.html')
+
+# ---- RUN ----
+if __name__ == '__main__':
     app.run(debug=True)
 
