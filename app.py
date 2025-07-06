@@ -1,52 +1,54 @@
-import os
-from flask import Flask, render_template, redirect, url_for, request, session, flash
+from flask import Flask, render_template, request, redirect, url_for, flash, session, send_from_directory
 from flask_sqlalchemy import SQLAlchemy
-from flask_login import LoginManager, login_user, login_required, logout_user, UserMixin, current_user
+from flask_login import LoginManager, login_user, logout_user, login_required, current_user, UserMixin
 from flask_mail import Mail, Message
+from flask_migrate import Migrate
 from apscheduler.schedulers.background import BackgroundScheduler
 from datetime import datetime
+from werkzeug.utils import secure_filename
+import os
 from dotenv import load_dotenv
-import atexit
+from twilio.rest import Client
 
 # Load environment variables
 load_dotenv()
 
-# Flask app setup
 app = Flask(__name__)
-app.secret_key = os.getenv('SECRET_KEY', 'defaultsecret')
-
-# Database setup
+app.config['SECRET_KEY'] = os.getenv("SECRET_KEY", "dev")
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///pillpal.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
-# Mail config
+# Upload settings for OCR
+UPLOAD_FOLDER = os.path.join(os.getcwd(), 'uploads')
+os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
+
+# Email settings
 app.config['MAIL_SERVER'] = 'smtp.gmail.com'
 app.config['MAIL_PORT'] = 587
 app.config['MAIL_USE_TLS'] = True
 app.config['MAIL_USERNAME'] = os.getenv("MAIL_USERNAME")
 app.config['MAIL_PASSWORD'] = os.getenv("MAIL_PASSWORD")
-
-# Initialize extensions
-db = SQLAlchemy(app)
 mail = Mail(app)
-login_manager = LoginManager()
-login_manager.init_app(app)
-login_manager.login_view = 'login'
 
-# Twilio (mocked)
+# Twilio settings
 TWILIO_SID = os.getenv("TWILIO_SID")
-TWILIO_AUTH = os.getenv("TWILIO_AUTH")
-TWILIO_PHONE = os.getenv("TWILIO_PHONE")
+TWILIO_AUTH_TOKEN = os.getenv("TWILIO_AUTH")
+TWILIO_PHONE_NUMBER = os.getenv("TWILIO_PHONE")
+twilio_client = Client(TWILIO_SID, TWILIO_AUTH_TOKEN)
 
-# Create tables on app start
-with app.app_context():
-    db.create_all()
+# App extensions
+db = SQLAlchemy(app)
+login_manager = LoginManager(app)
+login_manager.login_view = 'login'
+migrate = Migrate(app, db)
 
 # Models
 class User(UserMixin, db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    email = db.Column(db.String(150), unique=True, nullable=False)
-    password = db.Column(db.String(150), nullable=False)
+    email = db.Column(db.String(120), unique=True, nullable=False)
+    password = db.Column(db.String(120), nullable=False)
+    reset_token = db.Column(db.String(120), nullable=True)
     family_members = db.relationship('FamilyMember', backref='owner', lazy=True)
 
 class FamilyMember(db.Model):
@@ -60,16 +62,14 @@ class FamilyMember(db.Model):
 class Pill(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(100))
-    time = db.Column(db.String(10))  # in HH:MM format
+    time = db.Column(db.String(10))  # HH:MM
     status = db.Column(db.String(20), default='pending')
     member_id = db.Column(db.Integer, db.ForeignKey('family_member.id'), nullable=False)
 
-# Flask-Login loader
 @login_manager.user_loader
 def load_user(user_id):
     return User.query.get(int(user_id))
 
-# Routes
 @app.route('/')
 @login_required
 def home():
@@ -84,10 +84,9 @@ def register():
         if User.query.filter_by(email=email).first():
             flash('Email already registered.')
             return redirect(url_for('register'))
-        user = User(email=email, password=password)
-        db.session.add(user)
+        db.session.add(User(email=email, password=password))
         db.session.commit()
-        flash('Registered! Now log in.')
+        flash('Registered successfully.')
         return redirect(url_for('login'))
     return render_template('register.html')
 
@@ -98,7 +97,7 @@ def login():
         if user and user.password == request.form['password']:
             login_user(user)
             return redirect(url_for('home'))
-        flash('Invalid credentials')
+        flash('Invalid credentials.')
     return render_template('login.html')
 
 @app.route('/logout')
@@ -110,10 +109,7 @@ def logout():
 @app.route('/add_member', methods=['POST'])
 @login_required
 def add_member():
-    name = request.form['name']
-    phone = request.form['phone']
-    relation = request.form['relation']
-    member = FamilyMember(name=name, phone=phone, relation=relation, user_id=current_user.id)
+    member = FamilyMember(name=request.form['name'], phone=request.form['phone'], relation=request.form['relation'], user_id=current_user.id)
     db.session.add(member)
     db.session.commit()
     return redirect(url_for('home'))
@@ -121,14 +117,57 @@ def add_member():
 @app.route('/add_pill/<int:member_id>', methods=['POST'])
 @login_required
 def add_pill(member_id):
-    name = request.form['pill_name']
-    time = request.form['pill_time']
-    pill = Pill(name=name, time=time, member_id=member_id)
+    pill = Pill(name=request.form['pill_name'], time=request.form['pill_time'], member_id=member_id)
     db.session.add(pill)
     db.session.commit()
     return redirect(url_for('home'))
 
-# Reminder function
+@app.route('/upload_prescription', methods=['POST'])
+@login_required
+def upload_prescription():
+    file = request.files['prescription']
+    if file:
+        filename = secure_filename(file.filename)
+        filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+        file.save(filepath)
+        flash('Prescription uploaded for OCR (mocked).')
+        return redirect(url_for('home'))
+    flash('File upload failed.')
+    return redirect(url_for('home'))
+
+@app.route('/reset_request', methods=['GET', 'POST'])
+def reset_request():
+    if request.method == 'POST':
+        user = User.query.filter_by(email=request.form['email']).first()
+        if user:
+            user.reset_token = os.urandom(8).hex()
+            db.session.commit()
+            reset_url = url_for('reset_password', token=user.reset_token, _external=True)
+            mail.send(Message("Password Reset", recipients=[user.email], body=f"Reset here: {reset_url}"))
+            flash('Reset link sent.')
+        else:
+            flash('Email not found.')
+        return redirect(url_for('login'))
+    return render_template('reset_request.html')
+
+@app.route('/reset_password/<token>', methods=['GET', 'POST'])
+def reset_password(token):
+    user = User.query.filter_by(reset_token=token).first()
+    if not user:
+        flash('Invalid or expired token.')
+        return redirect(url_for('login'))
+    if request.method == 'POST':
+        user.password = request.form['password']
+        user.reset_token = None
+        db.session.commit()
+        flash('Password updated.')
+        return redirect(url_for('login'))
+    return render_template('reset_password.html')
+
+# Background job
+scheduler = BackgroundScheduler()
+
+@scheduler.scheduled_job('interval', seconds=60)
 def send_reminders():
     with app.app_context():
         now = datetime.now().strftime("%H:%M")
@@ -136,27 +175,31 @@ def send_reminders():
         for pill in due_pills:
             member = pill.member
             user = member.owner
-            msg = f"Reminder: {member.name} should take {pill.name} now."
+            msg_body = f"Reminder: {member.name} should take {pill.name} now."
 
-            # Send email
+            # Email
             if user.email:
                 try:
-                    mail.send(Message('Pill Reminder', recipients=[user.email], body=msg))
+                    mail.send(Message('Pill Reminder', recipients=[user.email], body=msg_body))
                 except Exception as e:
-                    print("Email send failed:", e)
+                    print("Email failed:", e)
 
-            # Mock Twilio send
-            print(f"Would send SMS/WhatsApp to {member.phone}: {msg}")
+            # WhatsApp/SMS
+            try:
+                twilio_client.messages.create(
+                    to=f"whatsapp:{member.phone}",  # or just phone for SMS
+                    from_=f"whatsapp:{TWILIO_PHONE_NUMBER}",
+                    body=msg_body
+                )
+            except Exception as e:
+                print("Twilio send failed:", e)
 
             pill.status = 'done'
             db.session.commit()
 
-# Schedule reminder every minute
-scheduler = BackgroundScheduler()
-scheduler.add_job(func=send_reminders, trigger="interval", seconds=60)
 scheduler.start()
-atexit.register(lambda: scheduler.shutdown())
 
-# Run server
 if __name__ == '__main__':
+    with app.app_context():
+        db.create_all()
     app.run(debug=True)
