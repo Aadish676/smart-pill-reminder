@@ -3,4 +3,5 @@ Flask-SQLAlchemy==3.0.3
 Flask-Login==0.6.2
 python-dotenv==1.0.0
 apscheduler==3.10.4
-twilio==8.15.0
+twilio==8.12.0
+
