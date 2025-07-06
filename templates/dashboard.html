@@ -1,59 +1,83 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <title>Dashboard - Smart Pill Reminder</title>
+  <meta charset="UTF-8" />
+  <title>Dashboard - Smart Pill Reminder</title>
+  <style>
+    body { font-family: Arial, sans-serif; padding: 1rem 2rem; background: #eef2f7; }
+    header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem; }
+    h1 { margin: 0; }
+    a.logout { background: #dc3545; color: white; padding: 0.4rem 1rem; border-radius: 4px; text-decoration: none; }
+    a.logout:hover { background: #a71d2a; }
+    section { background: white; padding: 1rem 2rem; border-radius: 8px; box-shadow: 0 2px 6px rgba(0,0,0,0.1); margin-bottom: 2rem; }
+    form { margin-top: 1rem; }
+    input, select, button { padding: 0.5rem; margin: 0.3rem 0; }
+    button { background: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer; }
+    button:hover { background: #0056b3; }
+    table { width: 100%; border-collapse: collapse; margin-top: 1rem; }
+    th, td { padding: 0.5rem; border: 1px solid #ddd; text-align: left; }
+  </style>
 </head>
 <body>
+  <header>
     <h1>Welcome, {{ current_user.email }}</h1>
-    <a href="{{ url_for('logout') }}">Logout</a>
+    <a href="{{ url_for('logout') }}" class="logout">Logout</a>
+  </header>
 
-    <h2>Add Family Member</h2>
-    <form action="{{ url_for('add_member') }}" method="POST">
-        <label>Name:</label><br>
-        <input type="text" name="name" required><br><br>
-
-        <label>Phone Number (with country code, e.g. +919999999999):</label><br>
-        <input type="text" name="phone" required><br><br>
-
-        <label>Notification Method:</label><br>
-        <select name="notify_method" required>
-            <option value="email">Email</option>
-            <option value="sms">SMS</option>
-            <option value="whatsapp">WhatsApp</option>
-        </select><br><br>
-
-        <button type="submit">Add Member</button>
-    </form>
-
-    <h2>Family Members & Pills</h2>
-    {% for member in members %}
-        <div style="border:1px solid #ccc; padding:10px; margin-bottom:10px;">
-            <h3>{{ member.name }} ({{ member.notify_method }})</h3>
-            <p>Phone: {{ member.phone }}</p>
-
-            <h4>Assign Pill</h4>
-            <form action="{{ url_for('assign_pill', member_id=member.id) }}" method="POST">
-                <label>Pill Name:</label><br>
-                <input type="text" name="pill_name" required><br><br>
-
-                <label>Time (HH:MM - 24hr format):</label><br>
-                <input type="time" name="pill_time" required><br><br>
-
-                <button type="submit">Assign Pill</button>
-            </form>
-
-            <h4>Current Pills:</h4>
-            <ul>
+  <section>
+    <h2>Family Members</h2>
+    {% if members %}
+      <table>
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Phone</th>
+            <th>Relation</th>
+            <th>Pills</th>
+            <th>Add Pill</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for member in members %}
+          <tr>
+            <td>{{ member.name }}</td>
+            <td>{{ member.phone }}</td>
+            <td>{{ member.relation }}</td>
+            <td>
+              {% if member.pills %}
+                <ul>
                 {% for pill in member.pills %}
-                    <li>{{ pill.name }} at {{ pill.time }} ({{ pill.status }})</li>
-                {% else %}
-                    <li>No pills assigned.</li>
+                  <li>{{ pill.name }} at {{ pill.time }} ({{ pill.status }})</li>
                 {% endfor %}
-            </ul>
-        </div>
+                </ul>
+              {% else %}
+                No pills added
+              {% endif %}
+            </td>
+            <td>
+              <form method="POST" action="{{ url_for('add_pill', member_id=member.id) }}">
+                <input type="text" name="pill_name" placeholder="Pill name" required />
+                <input type="time" name="pill_time" required />
+                <button type="submit">Add</button>
+              </form>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
     {% else %}
-        <p>No family members added yet.</p>
-    {% endfor %}
+      <p>No family members yet. Add one below!</p>
+    {% endif %}
+  </section>
+
+  <section>
+    <h2>Add Family Member</h2>
+    <form method="POST" action="{{ url_for('add_member') }}">
+      <input type="text" name="name" placeholder="Name" required />
+      <input type="text" name="phone" placeholder="Phone number" required />
+      <input type="text" name="relation" placeholder="Relation" required />
+      <button type="submit">Add Member</button>
+    </form>
+  </section>
 </body>
 </html>
-
