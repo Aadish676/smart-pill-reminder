@@ -131,19 +131,27 @@ def add_pill(member_id):
 # -------------------- Reminder Function ----------------------
 
 def send_reminders():
-    now = datetime.now().strftime("%H:%M")
-    due_pills = Pill.query.filter_by(time=now, status='pending').all()
-    for pill in due_pills:
-        user = pill.member.owner
-        msg_body = f"Reminder: {pill.member.name} should take {pill.name} now."
-        
-        # Email
-        if user.email:
-            try:
-                msg = Message("Pill Reminder", recipients=[user.email], body=msg_body)
-                mail.send(msg)
-            except Exception as e:
-                print("Failed to send email:", e)
+    with app.app_context():  # <-- Fixes the application context error
+        now = datetime.now().strftime("%H:%M")
+        due_pills = Pill.query.filter_by(time=now, status='pending').all()
+        for pill in due_pills:
+            member = pill.member
+            user = member.owner
+            msg = f"Reminder: {member.name} should take {pill.name} now."
+
+            # Send email
+            if user.email:
+                try:
+                    mail.send(Message('Pill Reminder', recipients=[user.email], body=msg))
+                except Exception as e:
+                    print("Email send failed:", e)
+
+            # Mock Twilio (print only)
+            print(f"Would send SMS/WhatsApp to {member.phone}: {msg}")
+
+            pill.status = 'done'
+            db.session.commit()
+
 
         # Mock Twilio
         print(f"Would send WhatsApp/SMS to {pill.member.phone}: {msg_body}")
