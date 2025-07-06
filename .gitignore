@@ -1,0 +1,48 @@
+# ⚙️ Python artifacts
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.pyc
+
+# 🐍 Virtual environments
+venv/
+.venv/
+env/
+ENV/
+
+# 🔒 Secrets & local environment
+.env
+.env.*
+
+# 📦 Dependency metadata
+*.egg-info/
+pip-log.txt
+pip-delete-this-directory.txt
+
+# 🧪 Unit test cache
+htmlcov/
+.tox/
+.nox/
+.coverage
+.cache
+.pytest_cache/
+nosetests.xml
+coverage.xml
+
+# 🗃️ Databases & uploads
+*.db
+*.sqlite3
+instance/
+uploads/
+
+# 🔧 IDE/editor files
+.vscode/
+.idea/
+
+# 💻 System files
+.DS_Store
+Thumbs.db
+
+# 📄 Render deploy helper (optional)
+render.yaml
