@@ -6,11 +6,8 @@ from flask_mail import Mail, Message
 from apscheduler.schedulers.background import BackgroundScheduler
 from datetime import datetime
 from dotenv import load_dotenv
-from flask_migrate import upgrade
-with app.app_context():
-    upgrade()
-
-migrate = Migrate(app, db)
+from flask_migrate import Migrate, upgrade
+import atexit
 
 load_dotenv()
 
@@ -23,7 +20,6 @@ app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 db = SQLAlchemy(app)
 
 # Migrate support
-from flask_migrate import Migrate
 migrate = Migrate(app, db)
 
 # Flask-Login setup
@@ -71,99 +67,15 @@ class Pill(db.Model):
 def load_user(user_id):
     return User.query.get(int(user_id))
 
-# Routes
-@app.route('/')
-@login_required
-def home():
-    members = FamilyMember.query.filter_by(user_id=current_user.id).all()
-    return render_template('dashboard.html', members=members)
+# Routes and other code ...
 
-@app.route('/register', methods=['GET', 'POST'])
-def register():
-    if request.method == 'POST':
-        email = request.form['email']
-        password = request.form['password']
-        if User.query.filter_by(email=email).first():
-            flash('Email already registered.')
-            return redirect(url_for('register'))
-        user = User(email=email, password=password)
-        db.session.add(user)
-        db.session.commit()
-        flash('Registered! Now log in.')
-        return redirect(url_for('login'))
-    return render_template('register.html')
+# Reminder function and scheduler ...
 
-@app.route('/login', methods=['GET', 'POST'])
-def login():
-    if request.method == 'POST':
-        user = User.query.filter_by(email=request.form['email']).first()
-        if user and user.password == request.form['password']:
-            login_user(user)
-            return redirect(url_for('home'))
-        flash('Invalid credentials')
-    return render_template('login.html')
-
-@app.route('/logout')
-@login_required
-def logout():
-    logout_user()
-    return redirect(url_for('login'))
-
-@app.route('/add_member', methods=['POST'])
-@login_required
-def add_member():
-    name = request.form['name']
-    phone = request.form['phone']
-    relation = request.form['relation']
-    member = FamilyMember(name=name, phone=phone, relation=relation, user_id=current_user.id)
-    db.session.add(member)
-    db.session.commit()
-    return redirect(url_for('home'))
-
-@app.route('/add_pill/<int:member_id>', methods=['POST'])
-@login_required
-def add_pill(member_id):
-    name = request.form['pill_name']
-    time = request.form['pill_time']
-    pill = Pill(name=name, time=time, member_id=member_id)
-    db.session.add(pill)
-    db.session.commit()
-    return redirect(url_for('home'))
-
-# Reminder function
-def send_reminders():
-    now = datetime.now().strftime("%H:%M")
-    pills = Pill.query.filter_by(time=now, status='pending').all()
-    for pill in pills:
-        member = pill.member
-        user = member.owner
-        msg = f"Reminder: {member.name} should take {pill.name} now."
-
-        # Send email
-        if user.email:
-            try:
-                mail.send(Message('Pill Reminder', recipients=[user.email], body=msg))
-            except Exception as e:
-                print("Email send failed:", e)
-
-        # Mock Twilio send
-        print(f"Would send SMS/WhatsApp to {member.phone}: {msg}")
-
-        pill.status = 'done'
-        db.session.commit()
-
-# Schedule task every minute
-scheduler = BackgroundScheduler()
-scheduler.add_job(func=send_reminders, trigger="interval", seconds=60)
-scheduler.start()
-
-# Shutdown properly on exit
-import atexit
+# Shutdown scheduler properly
 atexit.register(lambda: scheduler.shutdown())
 
-# Run only if not imported
+# Run the migrations only when running locally directly
 if __name__ == '__main__':
+    with app.app_context():
+        upgrade()  # This runs your migration scripts and creates tables if needed
     app.run(debug=True)
-
-
-
