@@ -136,7 +136,7 @@ def send_reminders():
         db.session.commit()
         db.session.commit()
 
-scheduler.start()
+
 
 # DB init
 with app.app_context():
