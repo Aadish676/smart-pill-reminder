@@ -8,14 +8,27 @@ import requests
 import smtplib
 from email.mime.text import MIMEText
 from itsdangerous import URLSafeTimedSerializer, SignatureExpired, BadSignature
+from dotenv import load_dotenv
+from apscheduler.schedulers.background import BackgroundScheduler
 
-# ---- CONFIG ----
+# Load environment variables
+load_dotenv()
+
+# Configuration
 app = Flask(__name__)
-app.secret_key = 'your-very-secret-key'  # CHANGE THIS in prod
-
+app.secret_key = os.getenv("SECRET_KEY")
 UPLOAD_FOLDER = 'uploads'
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
+
+# Email settings
+SMTP_SERVER = 'smtp.gmail.com'
+SMTP_PORT = 587
+SENDER_EMAIL = os.getenv("EMAIL_USER")
+SENDER_PASSWORD = os.getenv("EMAIL_PASS")
+
+# Token Serializer
+serializer = URLSafeTimedSerializer(app.secret_key)
 
 # Flask-Login Setup
 login_manager = LoginManager()
@@ -25,17 +38,7 @@ login_manager.init_app(app)
 # OCR API key
 OCR_API_KEY = 'helloworld'
 
-# Email config (Gmail SMTP example)
-SMTP_SERVER = 'smtp.gmail.com'
-SMTP_PORT = 587
-SENDER_EMAIL = 'YOUR_EMAIL@gmail.com'           # CHANGE this
-SENDER_PASSWORD = 'YOUR_APP_PASSWORD'            # CHANGE this
-
-# Token serializer for password reset
-serializer = URLSafeTimedSerializer(app.secret_key)
-
-# ---- DATABASE HELPERS ----
-
+# Database helpers
 def get_db_connection():
     conn = sqlite3.connect('pills.db')
     conn.row_factory = sqlite3.Row
@@ -68,8 +71,7 @@ def init_db():
 
 init_db()
 
-# ---- USER MODEL ----
-
+# User model
 class User(UserMixin):
     def __init__(self, id_, username, email, password_hash):
         self.id = id_
@@ -86,8 +88,7 @@ def load_user(user_id):
         return User(user['id'], user['username'], user['email'], user['password_hash'])
     return None
 
-# ---- EMAIL SENDER ----
-
+# Email sender
 def send_email(to_email, subject, body):
     msg = MIMEText(body)
     msg['Subject'] = subject
@@ -104,15 +105,21 @@ def send_email(to_email, subject, body):
     except Exception as e:
         print(f"Email failed: {e}")
 
-# ---- EMAIL REMINDER (You can call this with scheduler) ----
-
+# Pill reminder sender
 def send_pill_reminder(to_email, pill_name, pill_time):
     subject = 'Pill Reminder'
     body = f"Reminder: Take your pill '{pill_name}' at {pill_time}."
     send_email(to_email, subject, body)
 
-# ---- ROUTES ----
+# Reminder scheduler task
+def check_and_send_reminders():
+    conn = get_db_connection()
+    pills = conn.execute("SELECT pills.name, pills.time, users.email FROM pills JOIN users ON pills.user_id = users.id").fetchall()
+    for pill in pills:
+        send_pill_reminder(pill['email'], pill['name'], pill['time'])
+    conn.close()
 
+# Routes
 @app.route('/')
 @login_required
 def index():
@@ -169,18 +176,13 @@ def ocr_extract():
 
     return render_template("index.html", pills=pills, ocr_lines=lines)
 
-# ----- AUTH ROUTES -----
-
+# Authentication routes
 @app.route('/register', methods=['GET', 'POST'])
 def register():
     if request.method == 'POST':
         username = request.form['username'].strip()
         email = request.form['email'].strip()
         password = request.form['password']
-
-        if not username or not password or not email:
-            flash('Please fill all fields')
-            return redirect(url_for('register'))
 
         conn = get_db_connection()
         existing_user = conn.execute("SELECT * FROM users WHERE username = ? OR email = ?", (username, email)).fetchone()
@@ -226,8 +228,7 @@ def logout():
     flash('Logged out.')
     return redirect(url_for('login'))
 
-# ---- PASSWORD RESET FLOW ----
-
+# Password reset
 @app.route('/reset_request', methods=['GET', 'POST'])
 def reset_request():
     if request.method == 'POST':
@@ -238,7 +239,7 @@ def reset_request():
         if user:
             token = serializer.dumps(email, salt='password-reset-salt')
             reset_url = url_for('reset_token', token=token, _external=True)
-            body = f"To reset your password, click the following link:\n\n{reset_url}\n\nIf you did not request a password reset, ignore this email."
+            body = f"To reset your password, click this link:\n\n{reset_url}"
             send_email(email, "Password Reset Request", body)
             flash('Password reset email sent! Check your inbox.')
         else:
@@ -249,27 +250,30 @@ def reset_request():
 @app.route('/reset_password/<token>', methods=['GET', 'POST'])
 def reset_token(token):
     try:
-        email = serializer.loads(token, salt='password-reset-salt', max_age=3600)  # 1 hour expiry
+        email = serializer.loads(token, salt='password-reset-salt', max_age=3600)
     except (SignatureExpired, BadSignature):
         flash('The reset link is invalid or has expired.')
         return redirect(url_for('reset_request'))
 
     if request.method == 'POST':
         password = request.form['password']
-        if not password:
-            flash('Please enter a new password.')
-            return redirect(url_for('reset_token', token=token))
         password_hash = generate_password_hash(password)
         conn = get_db_connection()
         conn.execute("UPDATE users SET password_hash = ? WHERE email = ?", (password_hash, email))
         conn.commit()
         conn.close()
-        flash('Password has been reset! You can now login.')
+        flash('Password has been reset. You can now log in.')
         return redirect(url_for('login'))
 
     return render_template('reset_password.html')
 
-# ---- RUN ----
+# Scheduler
+scheduler = BackgroundScheduler()
+scheduler.add_job(func=check_and_send_reminders, trigger="interval", seconds=60)
+scheduler.start()
+
+# Run app
 if __name__ == '__main__':
     app.run(debug=True)
+
 
