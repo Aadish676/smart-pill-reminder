@@ -118,6 +118,10 @@ def add_pill(member_id):
     return redirect(url_for('dashboard'))
 
 # Scheduler to send reminders
+from apscheduler.schedulers.background import BackgroundScheduler
+
+scheduler = BackgroundScheduler()
+scheduler.start()
 @scheduler.scheduled_job('interval', minutes=1)
 def send_reminders():
     with app.app_context():
