@@ -18,12 +18,10 @@ app.config['SECRET_KEY'] = os.getenv("SECRET_KEY", "dev")
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///pillpal.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
-# Upload settings for OCR
 UPLOAD_FOLDER = os.path.join(os.getcwd(), 'uploads')
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 
-# Email settings
 app.config['MAIL_SERVER'] = 'smtp.gmail.com'
 app.config['MAIL_PORT'] = 587
 app.config['MAIL_USE_TLS'] = True
@@ -31,19 +29,16 @@ app.config['MAIL_USERNAME'] = os.getenv("MAIL_USERNAME")
 app.config['MAIL_PASSWORD'] = os.getenv("MAIL_PASSWORD")
 mail = Mail(app)
 
-# Twilio settings
 TWILIO_SID = os.getenv("TWILIO_SID")
 TWILIO_AUTH_TOKEN = os.getenv("TWILIO_AUTH")
 TWILIO_PHONE_NUMBER = os.getenv("TWILIO_PHONE")
 twilio_client = Client(TWILIO_SID, TWILIO_AUTH_TOKEN)
 
-# App extensions
 db = SQLAlchemy(app)
 login_manager = LoginManager(app)
 login_manager.login_view = 'login'
 migrate = Migrate(app, db)
 
-# Models
 class User(UserMixin, db.Model):
     id = db.Column(db.Integer, primary_key=True)
     email = db.Column(db.String(120), unique=True, nullable=False)
@@ -62,7 +57,7 @@ class FamilyMember(db.Model):
 class Pill(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(100))
-    time = db.Column(db.String(10))  # HH:MM
+    time = db.Column(db.String(10))
     status = db.Column(db.String(20), default='pending')
     member_id = db.Column(db.Integer, db.ForeignKey('family_member.id'), nullable=False)
 
@@ -75,6 +70,33 @@ def load_user(user_id):
 def home():
     members = FamilyMember.query.filter_by(user_id=current_user.id).all()
     return render_template('dashboard.html', members=members)
+
+@app.route('/test_notification')
+@login_required
+def test_notification():
+    now = datetime.now().strftime("%H:%M:%S")
+    member = FamilyMember.query.filter_by(user_id=current_user.id).first()
+    if not member:
+        return "No family member found for test.", 400
+
+    msg_body = f"[{now}] Test notification for {member.name}"
+    results = []
+
+    if current_user.email:
+        try:
+            mail.send(Message('Test Pill Reminder', recipients=[current_user.email], body=msg_body))
+            results.append(f"Email sent to {current_user.email}")
+        except Exception as e:
+            results.append(f"Email failed: {e}")
+
+    try:
+        to_number = f"whatsapp:{member.phone}" if TWILIO_PHONE_NUMBER.startswith("whatsapp:") else member.phone
+        twilio_client.messages.create(to=to_number, from_=TWILIO_PHONE_NUMBER, body=msg_body)
+        results.append(f"Twilio message sent to {to_number}")
+    except Exception as e:
+        results.append(f"Twilio failed: {e}")
+
+    return "<br>".join(results)
 
 @app.route('/register', methods=['GET', 'POST'])
 def register():
@@ -164,56 +186,43 @@ def reset_password(token):
         return redirect(url_for('login'))
     return render_template('reset_password.html')
 
-# Background job
 scheduler = BackgroundScheduler()
 
 @scheduler.scheduled_job('interval', seconds=60)
 def send_reminders():
     with app.app_context():
         now = datetime.now().strftime("%H:%M")
+        print(f"[{now}] Scheduler checked.")
         due_pills = Pill.query.filter_by(time=now, status='pending').all()
-
         if not due_pills:
             print(f"[{now}] No pills due.")
             return
-
         for pill in due_pills:
             member = pill.member
             user = member.owner
             msg_body = f"Reminder: {member.name} should take {pill.name} now."
 
-            # Email
             if user.email:
                 try:
                     mail.send(Message('Pill Reminder', recipients=[user.email], body=msg_body))
                     print(f"[{now}] Email sent to {user.email}")
                 except Exception as e:
-                    print(f"[{now}] Email failed for {user.email}:", e)
+                    print(f"[{now}] Email failed for {user.email}: {e}")
 
-            # WhatsApp/SMS
             if member.phone:
                 try:
-                    if TWILIO_PHONE_NUMBER.startswith("whatsapp:"):
-                        to_number = f"whatsapp:{member.phone}"
-                    else:
-                        to_number = member.phone
-
-                    twilio_client.messages.create(
-                        to=to_number,
-                        from_=TWILIO_PHONE_NUMBER,
-                        body=msg_body
-                    )
+                    to_number = f"whatsapp:{member.phone}" if TWILIO_PHONE_NUMBER.startswith("whatsapp:") else member.phone
+                    twilio_client.messages.create(to=to_number, from_=TWILIO_PHONE_NUMBER, body=msg_body)
                     print(f"[{now}] Twilio message sent to {to_number}")
                 except Exception as e:
-                    print(f"[{now}] Twilio send failed to {member.phone}:", e)
+                    print(f"[{now}] Twilio send failed to {member.phone}: {e}")
 
             try:
                 pill.status = 'done'
                 db.session.commit()
             except Exception as e:
-                print(f"[{now}] Error updating status for {pill.name}:", e)
+                print(f"[{now}] Error updating status for {pill.name}: {e}")
 
-# Create tables BEFORE starting scheduler
 with app.app_context():
     db.create_all()
 
