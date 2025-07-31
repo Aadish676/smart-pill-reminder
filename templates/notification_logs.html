@@ -1,93 +1,197 @@
 {% extends "base.html" %}
 {% block content %}
-<div class="row">
-  <div class="col-md-8">
-    <h2>Notification Logs</h2>
+<div class="fade-in">
+  <!-- Header -->
+  <div class="dashboard-header">
+    <div class="row align-items-center">
+      <div class="col-md-8">
+        <h1 class="dashboard-title">
+          <i class="fas fa-chart-line icon"></i>Notification Logs
+        </h1>
+        <p class="dashboard-subtitle">View recent notification attempts and system status</p>
+      </div>
+      <div class="col-md-4 text-end">
+        <a href="{{ url_for('home') }}" class="btn btn-outline-secondary">
+          <i class="fas fa-arrow-left icon"></i>Back to Dashboard
+        </a>
+      </div>
+    </div>
   </div>
-  <div class="col-md-4 text-end">
-    <a href="{{ url_for('home') }}" class="btn btn-outline-secondary btn-sm">
-      ← Back to Dashboard
-    </a>
+
+  <!-- System Status -->
+  <div class="card slide-up mb-4">
+    <div class="card-header">
+      <i class="fas fa-cog icon"></i>Notification System Status
+    </div>
+    <div class="card-body">
+      <div class="row">
+        <div class="col-md-6">
+          {% if email_enabled %}
+            <div class="d-flex align-items-center mb-3">
+              <i class="fas fa-envelope fa-2x text-success me-3"></i>
+              <div>
+                <h6 class="mb-0">Email Notifications</h6>
+                <span class="badge bg-success">
+                  <i class="fas fa-check icon"></i>Active
+                </span>
+              </div>
+            </div>
+          {% else %}
+            <div class="d-flex align-items-center mb-3">
+              <i class="fas fa-envelope fa-2x text-danger me-3"></i>
+              <div>
+                <h6 class="mb-0">Email Notifications</h6>
+                <span class="badge bg-danger">
+                  <i class="fas fa-times icon"></i>Disabled
+                </span>
+                <br>
+                <small class="text-muted">Check MAIL_USERNAME and MAIL_PASSWORD environment variables</small>
+              </div>
+            </div>
+          {% endif %}
+        </div>
+        <div class="col-md-6">
+          {% if sms_enabled %}
+            <div class="d-flex align-items-center mb-3">
+              <i class="fas fa-sms fa-2x text-success me-3"></i>
+              <div>
+                <h6 class="mb-0">SMS/WhatsApp Notifications</h6>
+                <span class="badge bg-success">
+                  <i class="fas fa-check icon"></i>Active
+                </span>
+              </div>
+            </div>
+          {% else %}
+            <div class="d-flex align-items-center mb-3">
+              <i class="fas fa-sms fa-2x text-danger me-3"></i>
+              <div>
+                <h6 class="mb-0">SMS/WhatsApp Notifications</h6>
+                <span class="badge bg-danger">
+                  <i class="fas fa-times icon"></i>Disabled
+                </span>
+                <br>
+                <small class="text-muted">Check TWILIO_SID, TWILIO_AUTH, and TWILIO_PHONE environment variables</small>
+              </div>
+            </div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Logs Section -->
+  <div class="card slide-up">
+    <div class="card-header">
+      <i class="fas fa-history icon"></i>Recent Notification Attempts
+      <span class="badge bg-secondary ms-2">Last 50</span>
+    </div>
+    <div class="card-body">
+      {% if logs %}
+        <div class="table-responsive">
+          <table class="table">
+            <thead>
+              <tr>
+                <th><i class="fas fa-clock icon"></i>Timestamp</th>
+                <th><i class="fas fa-pills icon"></i>Medication & Patient</th>
+                <th><i class="fas fa-bell icon"></i>Type</th>
+                <th><i class="fas fa-check-circle icon"></i>Status</th>
+                <th><i class="fas fa-exclamation-triangle icon"></i>Details</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for log in logs %}
+              <tr>
+                <td>
+                  <div>
+                    <strong>{{ log.timestamp.strftime('%H:%M:%S') }}</strong><br>
+                    <small class="text-muted">{{ log.timestamp.strftime('%Y-%m-%d') }}</small>
+                  </div>
+                </td>
+                <td>
+                  {% if log.pill_id in pills %}
+                    <div>
+                      <strong class="text-primary">{{ pills[log.pill_id].name }}</strong><br>
+                      <small class="text-muted">
+                        <i class="fas fa-user icon"></i>{{ pills[log.pill_id].member.name }}
+                        {% if pills[log.pill_id].member.email %}
+                          <br><i class="fas fa-envelope icon"></i>{{ pills[log.pill_id].member.email }}
+                        {% endif %}
+                      </small>
+                    </div>
+                  {% else %}
+                    <em class="text-muted">Unknown Pill</em>
+                  {% endif %}
+                </td>
+                <td>
+                  {% if log.notification_type == 'email' %}
+                    <span class="badge bg-primary">
+                      <i class="fas fa-envelope icon"></i>Email
+                    </span>
+                  {% elif log.notification_type == 'sms' %}
+                    <span class="badge bg-success">
+                      <i class="fas fa-sms icon"></i>SMS/WhatsApp
+                    </span>
+                  {% else %}
+                    <span class="badge bg-secondary">{{ log.notification_type }}</span>
+                  {% endif %}
+                </td>
+                <td>
+                  {% if log.status == 'sent' %}
+                    <span class="badge bg-success">
+                      <i class="fas fa-check icon"></i>Sent
+                    </span>
+                  {% elif log.status == 'failed' %}
+                    <span class="badge bg-danger">
+                      <i class="fas fa-times icon"></i>Failed
+                    </span>
+                  {% else %}
+                    <span class="badge bg-secondary">{{ log.status }}</span>
+                  {% endif %}
+                </td>
+                <td>
+                  {% if log.error_message %}
+                    <div class="text-danger">
+                      <small>
+                        <i class="fas fa-exclamation-circle icon"></i>
+                        {{ log.error_message }}
+                      </small>
+                    </div>
+                  {% else %}
+                    <span class="text-success">
+                      <i class="fas fa-check-circle icon"></i>
+                      <small>Success</small>
+                    </span>
+                  {% endif %}
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      {% else %}
+        <div class="text-center py-5">
+          <i class="fas fa-bell-slash fa-3x text-muted mb-3"></i>
+          <h4 class="text-muted">No Notification Logs Found</h4>
+          <p class="text-muted">
+            Notification logs will appear here after the system attempts to send reminders.<br>
+            Try adding a pill scheduled for the current time and wait for the reminder to be sent.
+          </p>
+          <a href="{{ url_for('home') }}" class="btn btn-primary">
+            <i class="fas fa-plus icon"></i>Add Medications
+          </a>
+        </div>
+      {% endif %}
+    </div>
   </div>
 </div>
 
-<p class="text-muted">Recent notification attempts (last 50)</p>
-
-{% if logs %}
-<div class="table-responsive">
-  <table class="table table-striped table-sm">
-    <thead>
-      <tr>
-        <th>Timestamp</th>
-        <th>Pill</th>
-        <th>Type</th>
-        <th>Status</th>
-        <th>Error Message</th>
-      </tr>
-    </thead>
-    <tbody>
-      {% for log in logs %}
-      <tr>
-        <td>{{ log.timestamp.strftime('%Y-%m-%d %H:%M:%S') }}</td>
-        <td>
-          {% if log.pill_id in pills %}
-            <strong>{{ pills[log.pill_id].name }}</strong><br>
-            <small class="text-muted">{{ pills[log.pill_id].member.name }}</small>
-          {% else %}
-            <em>Unknown Pill</em>
-          {% endif %}
-        </td>
-        <td>
-          {% if log.notification_type == 'email' %}
-            <span class="badge bg-primary">📧 Email</span>
-          {% elif log.notification_type == 'sms' %}
-            <span class="badge bg-success">📱 SMS</span>
-          {% else %}
-            <span class="badge bg-secondary">{{ log.notification_type }}</span>
-          {% endif %}
-        </td>
-        <td>
-          {% if log.status == 'sent' %}
-            <span class="badge bg-success">✓ Sent</span>
-          {% elif log.status == 'failed' %}
-            <span class="badge bg-danger">✗ Failed</span>
-          {% else %}
-            <span class="badge bg-secondary">{{ log.status }}</span>
-          {% endif %}
-        </td>
-        <td>
-          {% if log.error_message %}
-            <small class="text-danger">{{ log.error_message }}</small>
-          {% else %}
-            <small class="text-muted">-</small>
-          {% endif %}
-        </td>
-      </tr>
-      {% endfor %}
-    </tbody>
-  </table>
-</div>
-{% else %}
-<div class="alert alert-info">
-  <h5>No notification logs found</h5>
-  <p>Notifications logs will appear here after the system attempts to send reminders. Try adding a pill scheduled for the current time and wait for the reminder to be sent.</p>
-</div>
-{% endif %}
-
-<div class="mt-4">
-  <h5>Notification System Status</h5>
-  <ul class="list-unstyled">
-    {% if email_enabled %}
-      <li><span class="badge bg-success">✓</span> Email notifications are enabled</li>
-    {% else %}
-      <li><span class="badge bg-danger">✗</span> Email notifications are disabled (check MAIL_USERNAME and MAIL_PASSWORD environment variables)</li>
-    {% endif %}
-    
-    {% if sms_enabled %}
-      <li><span class="badge bg-success">✓</span> SMS/WhatsApp notifications are enabled</li>
-    {% else %}
-      <li><span class="badge bg-danger">✗</span> SMS/WhatsApp notifications are disabled (check TWILIO_SID, TWILIO_AUTH, and TWILIO_PHONE environment variables)</li>
-    {% endif %}
-  </ul>
-</div>
+<script>
+// Add animation delays for staggered loading
+document.addEventListener('DOMContentLoaded', function() {
+    const slideUpElements = document.querySelectorAll('.slide-up');
+    slideUpElements.forEach((element, index) => {
+        element.style.animationDelay = (index * 0.1) + 's';
+    });
+});
+</script>
 {% endblock %}

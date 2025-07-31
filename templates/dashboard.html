@@ -1,105 +1,210 @@
 {% extends "base.html" %}
 {% block content %}
-<div class="row">
-  <div class="col-md-8">
-    <h2>Your Family Members</h2>
-  </div>
-  <div class="col-md-4 text-end">
-    <a href="{{ url_for('test_notification') }}" class="btn btn-outline-primary btn-sm me-2">
-      📱 Test Notifications
-    </a>
-    <a href="{{ url_for('reset_pills') }}" class="btn btn-outline-secondary btn-sm me-2" onclick="return confirm('Reset all pills to pending status?')">
-      🔄 Reset Pills
-    </a>
-    <a href="{{ url_for('notification_logs') }}" class="btn btn-outline-info btn-sm">
-      📊 Logs
-    </a>
-  </div>
-</div>
-
-<!-- Notification Service Status -->
-<div class="alert alert-info mb-4">
-  <strong>Notification Services:</strong>
-  {% if email_enabled %}
-    <span class="badge bg-success">✓ Email</span>
-  {% else %}
-    <span class="badge bg-danger">✗ Email (Not Configured)</span>
-  {% endif %}
-  
-  {% if sms_enabled %}
-    <span class="badge bg-success">✓ SMS/WhatsApp</span>
-  {% else %}
-    <span class="badge bg-danger">✗ SMS/WhatsApp (Not Configured)</span>
-  {% endif %}
-</div>
-
-<table class="table table-bordered">
-  <thead>
-    <tr>
-      <th>Name</th>
-      <th>Phone</th>
-      <th>Relation</th>
-      <th>Pills</th>
-      <th>Add Pill</th>
-    </tr>
-  </thead>
-  <tbody>
-    {% for member in members %}
-    <tr>
-      <td>{{ member.name }}</td>
-      <td>{{ member.phone }}</td>
-      <td>{{ member.relation }}</td>
-      <td>
-        <ul>
-          {% for pill in member.pills %}
-            <li>
-              <strong>{{ pill.name }}</strong> at {{ pill.time }}
-              {% if pill.status == 'pending' %}
-                <span class="badge bg-warning">⏳ Pending</span>
-              {% elif pill.status == 'notified' %}
-                <span class="badge bg-success">✓ Notified</span>
-              {% elif pill.status == 'failed' %}
-                <span class="badge bg-danger">✗ Failed</span>
-              {% else %}
-                <span class="badge bg-secondary">{{ pill.status }}</span>
-              {% endif %}
-            </li>
+<div class="fade-in">
+  <!-- Dashboard Header -->
+  <div class="dashboard-header">
+    <h1 class="dashboard-title">
+      <i class="fas fa-pills icon"></i>Smart Pill Reminder
+    </h1>
+    <p class="dashboard-subtitle">Manage medications for your family members with intelligent reminders</p>
+    
+    <div class="row">
+      <div class="col-md-8">
+        <div class="service-status">
+          <h5><i class="fas fa-cog icon"></i>Notification Services Status</h5>
+          {% if email_enabled %}
+            <span class="badge bg-success me-2"><i class="fas fa-check"></i> Email Service Active</span>
           {% else %}
-            <li class="text-muted">No pills added</li>
+            <span class="badge bg-danger me-2"><i class="fas fa-times"></i> Email Service (Not Configured)</span>
+          {% endif %}
+          
+          {% if sms_enabled %}
+            <span class="badge bg-success"><i class="fas fa-check"></i> SMS/WhatsApp Active</span>
+          {% else %}
+            <span class="badge bg-danger"><i class="fas fa-times"></i> SMS/WhatsApp (Not Configured)</span>
+          {% endif %}
+        </div>
+      </div>
+      <div class="col-md-4 text-end">
+        <a href="{{ url_for('test_notification') }}" class="btn btn-outline-primary btn-sm me-2">
+          <i class="fas fa-bell"></i> Test Notifications
+        </a>
+        <a href="{{ url_for('reset_pills') }}" class="btn btn-outline-secondary btn-sm me-2" onclick="return confirm('Reset all pills to pending status?')">
+          <i class="fas fa-redo"></i> Reset Pills
+        </a>
+        <a href="{{ url_for('notification_logs') }}" class="btn btn-outline-info btn-sm">
+          <i class="fas fa-chart-line"></i> Logs
+        </a>
+      </div>
+    </div>
+  </div>
+
+  <!-- Family Members Section -->
+  <div class="card slide-up">
+    <div class="card-header">
+      <i class="fas fa-users icon"></i>Family Members & Medications
+    </div>
+    <div class="card-body">
+      {% if members %}
+        <div class="row">
+          {% for member in members %}
+          <div class="col-lg-6 col-md-12 mb-4">
+            <div class="member-card">
+              <div class="member-name">
+                <i class="fas fa-user icon"></i>{{ member.name }}
+              </div>
+              <div class="member-info">
+                <div class="mb-2">
+                  <i class="fas fa-phone icon"></i>
+                  <strong>Phone:</strong> {{ member.phone }}
+                </div>
+                {% if member.email %}
+                <div class="mb-2">
+                  <i class="fas fa-envelope icon"></i>
+                  <strong>Email:</strong> {{ member.email }}
+                </div>
+                {% endif %}
+                <div class="mb-3">
+                  <i class="fas fa-heart icon"></i>
+                  <strong>Relation:</strong> {{ member.relation }}
+                </div>
+              </div>
+              
+              <!-- Pills Section -->
+              <div class="pill-list">
+                <h6><i class="fas fa-pills icon"></i>Current Medications</h6>
+                {% for pill in member.pills %}
+                  <div class="pill-item">
+                    <div>
+                      <strong>{{ pill.name }}</strong><br>
+                      <small class="text-muted">{{ pill.time }}</small>
+                    </div>
+                    <div>
+                      {% if pill.status == 'pending' %}
+                        <span class="badge bg-warning"><i class="fas fa-clock"></i> Pending</span>
+                      {% elif pill.status == 'notified' %}
+                        <span class="badge bg-success"><i class="fas fa-check"></i> Notified</span>
+                      {% elif pill.status == 'failed' %}
+                        <span class="badge bg-danger"><i class="fas fa-exclamation-triangle"></i> Failed</span>
+                      {% else %}
+                        <span class="badge bg-secondary">{{ pill.status }}</span>
+                      {% endif %}
+                    </div>
+                  </div>
+                {% else %}
+                  <p class="text-muted text-center">
+                    <i class="fas fa-plus-circle"></i> No medications added yet
+                  </p>
+                {% endfor %}
+              </div>
+              
+              <!-- Add Pill Form -->
+              <form method="POST" action="{{ url_for('add_pill', member_id=member.id) }}" class="mt-3">
+                <div class="row">
+                  <div class="col-md-6 mb-2">
+                    <input type="text" name="pill_name" placeholder="Medication Name" required class="form-control" />
+                  </div>
+                  <div class="col-md-4 mb-2">
+                    <input type="time" name="pill_time" required class="form-control" />
+                  </div>
+                  <div class="col-md-2 mb-2">
+                    <button type="submit" class="btn btn-primary btn-sm w-100">
+                      <i class="fas fa-plus"></i>
+                    </button>
+                  </div>
+                </div>
+              </form>
+            </div>
+          </div>
           {% endfor %}
-        </ul>
-      </td>
-      <td>
-        <form method="POST" action="{{ url_for('add_pill', member_id=member.id) }}">
-          <input type="text" name="pill_name" placeholder="Pill Name" required class="form-control mb-1" />
-          <input type="time" name="pill_time" required class="form-control mb-1" />
-          <button type="submit" class="btn btn-primary btn-sm">Add</button>
-        </form>
-      </td>
-    </tr>
-    {% else %}
-    <tr><td colspan="5">No family members added yet.</td></tr>
-    {% endfor %}
-  </tbody>
-</table>
+        </div>
+      {% else %}
+        <div class="text-center py-5">
+          <i class="fas fa-user-plus fa-3x text-muted mb-3"></i>
+          <h4 class="text-muted">No Family Members Added Yet</h4>
+          <p class="text-muted">Start by adding your first family member below</p>
+        </div>
+      {% endif %}
+    </div>
+  </div>
 
-<h3>Add Family Member</h3>
-<form method="POST" action="{{ url_for('add_member') }}">
-  <div class="mb-3">
-    <input type="text" name="name" placeholder="Name" required class="form-control" />
+  <!-- Add Family Member Form -->
+  <div class="add-member-form slide-up">
+    <h3><i class="fas fa-user-plus icon"></i>Add New Family Member</h3>
+    <form method="POST" action="{{ url_for('add_member') }}">
+      <div class="row">
+        <div class="col-md-6 mb-3">
+          <label class="form-label">
+            <i class="fas fa-user icon"></i>Full Name
+          </label>
+          <input type="text" name="name" placeholder="Enter full name" required class="form-control" />
+        </div>
+        <div class="col-md-6 mb-3">
+          <label class="form-label">
+            <i class="fas fa-phone icon"></i>Phone Number
+          </label>
+          <input type="text" name="phone" placeholder="Enter phone number" required class="form-control" />
+        </div>
+      </div>
+      <div class="row">
+        <div class="col-md-6 mb-3">
+          <label class="form-label">
+            <i class="fas fa-envelope icon"></i>Email Address (Optional)
+          </label>
+          <input type="email" name="email" placeholder="Enter Gmail address for direct notifications" class="form-control" />
+          <small class="form-text text-muted">Patient will receive medication reminders directly</small>
+        </div>
+        <div class="col-md-6 mb-3">
+          <label class="form-label">
+            <i class="fas fa-heart icon"></i>Relationship
+          </label>
+          <select name="relation" required class="form-control">
+            <option value="">Select relationship</option>
+            <option value="Parent">Parent</option>
+            <option value="Spouse">Spouse</option>
+            <option value="Child">Child</option>
+            <option value="Sibling">Sibling</option>
+            <option value="Grandparent">Grandparent</option>
+            <option value="Other">Other</option>
+          </select>
+        </div>
+      </div>
+      <div class="text-center">
+        <button type="submit" class="btn btn-success btn-lg">
+          <i class="fas fa-plus icon"></i>Add Family Member
+        </button>
+      </div>
+    </form>
   </div>
-  <div class="mb-3">
-    <input type="text" name="phone" placeholder="Phone Number" required class="form-control" />
-  </div>
-  <div class="mb-3">
-    <input type="text" name="relation" placeholder="Relation" required class="form-control" />
-  </div>
-  <button type="submit" class="btn btn-success">Add Member</button>
-</form>
 
-<h3 class="mt-5">Upload Prescription (OCR)</h3>
-<form method="POST" action="{{ url_for('upload_prescription') }}" enctype="multipart/form-data">
-  <input type="file" name="prescription" accept="image/*,.pdf" required class="form-control mb-2" />
-  <button type="submit" class="btn btn-info">Upload & Extract</button>
-</form>
+  <!-- Upload Prescription Section -->
+  <div class="upload-section slide-up">
+    <h3><i class="fas fa-file-upload icon"></i>Upload Prescription for OCR</h3>
+    <p class="text-muted mb-4">Upload a prescription image or PDF to automatically extract medication information</p>
+    <form method="POST" action="{{ url_for('upload_prescription') }}" enctype="multipart/form-data" class="row justify-content-center">
+      <div class="col-md-8">
+        <div class="row">
+          <div class="col-md-8 mb-3">
+            <input type="file" name="prescription" accept="image/*,.pdf" required class="form-control" />
+          </div>
+          <div class="col-md-4 mb-3">
+            <button type="submit" class="btn btn-info w-100">
+              <i class="fas fa-upload icon"></i>Upload & Extract
+            </button>
+          </div>
+        </div>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+// Add animation delays for staggered loading
+document.addEventListener('DOMContentLoaded', function() {
+    const slideUpElements = document.querySelectorAll('.slide-up');
+    slideUpElements.forEach((element, index) => {
+        element.style.animationDelay = (index * 0.1) + 's';
+    });
+});
+</script>
 {% endblock %}
