@@ -1,0 +1,283 @@
+{% extends "base.html" %}
+
+{% block title %}{{ member.name }} - PillPal{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <div class="d-flex align-items-center mb-4">
+            <a href="{{ url_for('home') }}" class="btn btn-outline-secondary me-3">
+                <i class="bi bi-arrow-left"></i>
+            </a>
+            <div class="flex-grow-1">
+                <h2 class="h4 mb-1">{{ member.name }}</h2>
+                <p class="text-muted mb-0">{{ member.relation.title() }}
+                {% if member.age %} • {{ member.age }} years old{% endif %}</p>
+            </div>
+            <div class="btn-group">
+                <a href="{{ url_for('add_medication', member_id=member.id) }}" class="btn btn-primary">
+                    <i class="bi bi-plus-circle me-2"></i>Add Medication
+                </a>
+                <a href="{{ url_for('edit_member', member_id=member.id) }}" class="btn btn-outline-primary">
+                    <i class="bi bi-pencil me-2"></i>Edit Profile
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <!-- Member Profile -->
+    <div class="col-lg-4 mb-4">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="bi bi-person-circle me-2"></i>Profile</h5>
+            </div>
+            <div class="card-body">
+                <div class="text-center mb-3">
+                    <div class="bg-primary rounded-circle d-inline-flex align-items-center justify-content-center" 
+                         style="width: 80px; height: 80px;">
+                        <i class="bi bi-person-fill text-white" style="font-size: 2rem;"></i>
+                    </div>
+                </div>
+                
+                <div class="mb-3">
+                    <h6 class="text-muted mb-1">Contact Information</h6>
+                    {% if member.phone %}
+                    <p class="mb-1"><i class="bi bi-phone me-2"></i>{{ member.phone }}</p>
+                    {% endif %}
+                    {% if member.email %}
+                    <p class="mb-1"><i class="bi bi-envelope me-2"></i>{{ member.email }}</p>
+                    {% endif %}
+                    {% if member.emergency_contact %}
+                    <p class="mb-0"><i class="bi bi-telephone-forward me-2"></i>Emergency: {{ member.emergency_contact }}</p>
+                    {% endif %}
+                </div>
+                
+                {% if member.medical_conditions %}
+                <div class="mb-3">
+                    <h6 class="text-muted mb-1">Medical Conditions</h6>
+                    <p class="small mb-0">{{ member.medical_conditions }}</p>
+                </div>
+                {% endif %}
+                
+                {% if member.allergies %}
+                <div class="mb-3">
+                    <h6 class="text-muted mb-1">Allergies</h6>
+                    <p class="small mb-0 text-danger">{{ member.allergies }}</p>
+                </div>
+                {% endif %}
+                
+                <div class="mb-0">
+                    <h6 class="text-muted mb-1">Medication Adherence (Last 30 Days)</h6>
+                    <div class="d-flex align-items-center">
+                        <div class="progress flex-grow-1 me-2" style="height: 8px;">
+                            <div class="progress-bar" role="progressbar" 
+                                 style="width: {{ adherence_rate }}%"
+                                 aria-valuenow="{{ adherence_rate }}" aria-valuemin="0" aria-valuemax="100"></div>
+                        </div>
+                        <span class="badge {% if adherence_rate >= 80 %}bg-success{% elif adherence_rate >= 60 %}bg-warning{% else %}bg-danger{% endif %}">
+                            {{ "%.1f"|format(adherence_rate) }}%
+                        </span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Current Medications -->
+    <div class="col-lg-8">
+        <div class="card mb-4">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0"><i class="bi bi-capsule me-2"></i>Current Medications</h5>
+                <span class="badge bg-primary">{{ member.medications|selectattr('is_active', 'equalto', true)|list|length }} active</span>
+            </div>
+            <div class="card-body">
+                {% if member.medications|selectattr('is_active', 'equalto', true)|list %}
+                <div class="row">
+                    {% for medication in member.medications if medication.is_active %}
+                    <div class="col-md-6 mb-3">
+                        <div class="card medication-card h-100">
+                            <div class="card-body">
+                                <div class="d-flex justify-content-between align-items-start mb-2">
+                                    <h6 class="card-title mb-1">{{ medication.name }}</h6>
+                                    {% if medication.remaining_quantity is not none and medication.remaining_quantity <= medication.refill_reminder_threshold %}
+                                    <span class="badge bg-warning">
+                                        <i class="bi bi-exclamation-triangle me-1"></i>Low Stock
+                                    </span>
+                                    {% endif %}
+                                </div>
+                                
+                                <p class="text-muted small mb-2">
+                                    <i class="bi bi-capsule me-1"></i>{{ medication.dosage }} {{ medication.form.title() }}
+                                    {% if medication.generic_name %}
+                                    <br><i class="bi bi-info-circle me-1"></i>{{ medication.generic_name }}
+                                    {% endif %}
+                                </p>
+                                
+                                <div class="mb-2">
+                                    {% for schedule in medication.schedules if schedule.is_active %}
+                                    <span class="badge bg-light text-dark me-1 mb-1">
+                                        {{ schedule.time.strftime('%I:%M %p') }}
+                                        {% if schedule.meal_timing %}
+                                        • {{ schedule.meal_timing.replace('_', ' ').title() }}
+                                        {% endif %}
+                                    </span>
+                                    {% endfor %}
+                                </div>
+                                
+                                <div class="row small text-muted">
+                                    {% if medication.remaining_quantity is not none %}
+                                    <div class="col-6">
+                                        <i class="bi bi-boxes me-1"></i>{{ medication.remaining_quantity }} left
+                                    </div>
+                                    {% endif %}
+                                    {% if medication.prescribing_doctor %}
+                                    <div class="col-6">
+                                        <i class="bi bi-person-badge me-1"></i>{{ medication.prescribing_doctor }}
+                                    </div>
+                                    {% endif %}
+                                </div>
+                                
+                                {% if medication.instructions %}
+                                <div class="mt-2">
+                                    <small class="text-info">
+                                        <i class="bi bi-info-circle me-1"></i>{{ medication.instructions }}
+                                    </small>
+                                </div>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <div class="text-center py-4">
+                    <i class="bi bi-capsule text-muted" style="font-size: 3rem;"></i>
+                    <h5 class="mt-3 text-muted">No Medications</h5>
+                    <p class="text-muted">Add {{ member.name }}'s first medication to start tracking</p>
+                    <a href="{{ url_for('add_medication', member_id=member.id) }}" class="btn btn-primary">
+                        <i class="bi bi-plus-circle me-2"></i>Add Medication
+                    </a>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Medication History -->
+{% if medication_logs %}
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="bi bi-clock-history me-2"></i>Recent Medication History</h5>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>Date & Time</th>
+                                <th>Medication</th>
+                                <th>Status</th>
+                                <th>Notes</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for log in medication_logs[:20] %}
+                            <tr>
+                                <td>
+                                    <div class="fw-medium">{{ log.scheduled_time.strftime('%b %d, %Y') }}</div>
+                                    <small class="text-muted">{{ log.scheduled_time.strftime('%I:%M %p') }}</small>
+                                </td>
+                                <td>
+                                    <div class="fw-medium">{{ log.medication.name }}</div>
+                                    <small class="text-muted">{{ log.medication.dosage }}</small>
+                                </td>
+                                <td>
+                                    <span class="status-badge status-{{ log.status }}">
+                                        {% if log.status == 'taken' %}
+                                        <i class="bi bi-check-circle me-1"></i>
+                                        {% elif log.status == 'missed' %}
+                                        <i class="bi bi-x-circle me-1"></i>
+                                        {% elif log.status == 'skipped' %}
+                                        <i class="bi bi-skip-forward me-1"></i>
+                                        {% else %}
+                                        <i class="bi bi-clock me-1"></i>
+                                        {% endif %}
+                                        {{ log.status.title() }}
+                                    </span>
+                                    {% if log.status == 'taken' and log.taken_time %}
+                                    <br><small class="text-muted">at {{ log.taken_time.strftime('%I:%M %p') }}</small>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if log.notes %}
+                                    <small>{{ log.notes }}</small>
+                                    {% endif %}
+                                    {% if log.side_effects %}
+                                    <br><small class="text-warning">Side effects: {{ log.side_effects }}</small>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if log.status == 'pending' %}
+                                    <div class="btn-group btn-group-sm">
+                                        <button class="btn btn-outline-success" onclick="markMedication({{ log.id }}, 'taken')">
+                                            <i class="bi bi-check"></i>
+                                        </button>
+                                        <button class="btn btn-outline-warning" onclick="markMedication({{ log.id }}, 'missed')">
+                                            <i class="bi bi-x"></i>
+                                        </button>
+                                        <button class="btn btn-outline-secondary" onclick="markMedication({{ log.id }}, 'skipped')">
+                                            <i class="bi bi-skip-forward"></i>
+                                        </button>
+                                    </div>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+function markMedication(logId, status) {
+    const notes = status === 'missed' ? prompt('Optional notes (e.g., reason for missing):') : 
+                  status === 'skipped' ? prompt('Optional notes (e.g., reason for skipping):') :
+                  status === 'taken' ? prompt('Optional notes (e.g., any side effects):') : '';
+    
+    fetch(`/api/medication_log/${logId}/status`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            status: status,
+            notes: notes || ''
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            location.reload();
+        } else {
+            alert('Error updating medication status: ' + data.error);
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('Error updating medication status');
+    });
+}
+</script>
+{% endblock %}

@@ -1,0 +1,157 @@
+{% extends "base.html" %}
+
+{% block title %}Settings - PillPal{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-lg-8 col-xl-6">
+        <div class="card">
+            <div class="card-header">
+                <h4 class="mb-0"><i class="bi bi-gear me-2"></i>Account Settings</h4>
+            </div>
+            <div class="card-body">
+                <form method="POST">
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label for="first_name" class="form-label">First Name</label>
+                            <input type="text" class="form-control" id="first_name" name="first_name" 
+                                   value="{{ current_user.first_name }}" required>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label for="last_name" class="form-label">Last Name</label>
+                            <input type="text" class="form-control" id="last_name" name="last_name" 
+                                   value="{{ current_user.last_name }}" required>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="email" class="form-label">Email Address</label>
+                        <input type="email" class="form-control" id="email" name="email" 
+                               value="{{ current_user.email }}" readonly>
+                        <div class="form-text">Email cannot be changed. Contact support if needed.</div>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label for="phone" class="form-label">Phone Number</label>
+                            <input type="tel" class="form-control" id="phone" name="phone" 
+                                   value="{{ current_user.phone or '' }}" placeholder="+1 (555) 123-4567">
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label for="timezone" class="form-label">Timezone</label>
+                            <select class="form-select" id="timezone" name="timezone">
+                                <option value="UTC" {% if current_user.timezone == 'UTC' %}selected{% endif %}>UTC</option>
+                                <option value="US/Eastern" {% if current_user.timezone == 'US/Eastern' %}selected{% endif %}>Eastern Time</option>
+                                <option value="US/Central" {% if current_user.timezone == 'US/Central' %}selected{% endif %}>Central Time</option>
+                                <option value="US/Mountain" {% if current_user.timezone == 'US/Mountain' %}selected{% endif %}>Mountain Time</option>
+                                <option value="US/Pacific" {% if current_user.timezone == 'US/Pacific' %}selected{% endif %}>Pacific Time</option>
+                                <option value="Europe/London" {% if current_user.timezone == 'Europe/London' %}selected{% endif %}>London</option>
+                                <option value="Europe/Paris" {% if current_user.timezone == 'Europe/Paris' %}selected{% endif %}>Paris</option>
+                                <option value="Asia/Tokyo" {% if current_user.timezone == 'Asia/Tokyo' %}selected{% endif %}>Tokyo</option>
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <hr class="my-4">
+                    
+                    <h5 class="mb-3"><i class="bi bi-bell me-2"></i>Notification Preferences</h5>
+                    
+                    <div class="mb-3">
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="email_notifications" 
+                                   name="email_notifications" {% if current_user.email_notifications %}checked{% endif %}>
+                            <label class="form-check-label" for="email_notifications">
+                                <strong>Email Notifications</strong>
+                                <div class="form-text">Receive medication reminders via email</div>
+                            </label>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-4">
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="sms_notifications" 
+                                   name="sms_notifications" {% if current_user.sms_notifications %}checked{% endif %}>
+                            <label class="form-check-label" for="sms_notifications">
+                                <strong>SMS Notifications</strong>
+                                <div class="form-text">Receive medication reminders via text message</div>
+                            </label>
+                        </div>
+                    </div>
+                    
+                    <hr class="my-4">
+                    
+                    <h5 class="mb-3"><i class="bi bi-key me-2"></i>Change Password</h5>
+                    
+                    <div class="mb-3">
+                        <label for="new_password" class="form-label">New Password</label>
+                        <input type="password" class="form-control" id="new_password" name="new_password" 
+                               placeholder="Leave blank to keep current password">
+                        <div class="form-text">Must be at least 8 characters long</div>
+                    </div>
+                    
+                    <div class="d-flex gap-2">
+                        <button type="submit" class="btn btn-primary">
+                            <i class="bi bi-check-circle me-2"></i>Save Changes
+                        </button>
+                        <a href="{{ url_for('home') }}" class="btn btn-outline-secondary">
+                            <i class="bi bi-x-circle me-2"></i>Cancel
+                        </a>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-lg-4 col-xl-6">
+        <div class="card">
+            <div class="card-header">
+                <h6 class="mb-0"><i class="bi bi-info-circle me-2"></i>About Notifications</h6>
+            </div>
+            <div class="card-body">
+                <div class="mb-3">
+                    <h6 class="text-primary"><i class="bi bi-envelope me-2"></i>Email Notifications</h6>
+                    <ul class="small text-muted mb-0">
+                        <li>Medication reminders</li>
+                        <li>Missed medication alerts</li>
+                        <li>Low stock warnings</li>
+                        <li>Daily/weekly summaries</li>
+                    </ul>
+                </div>
+                
+                <div class="mb-3">
+                    <h6 class="text-primary"><i class="bi bi-phone me-2"></i>SMS Notifications</h6>
+                    <ul class="small text-muted mb-0">
+                        <li>Real-time medication reminders</li>
+                        <li>Emergency missed dose alerts</li>
+                        <li>Critical low stock warnings</li>
+                    </ul>
+                </div>
+                
+                <div class="alert alert-info">
+                    <small>
+                        <i class="bi bi-lightbulb me-1"></i>
+                        <strong>Tip:</strong> Enable both email and SMS for the most comprehensive reminder system.
+                    </small>
+                </div>
+            </div>
+        </div>
+        
+        <div class="card mt-4">
+            <div class="card-header">
+                <h6 class="mb-0"><i class="bi bi-shield-check me-2"></i>Account Security</h6>
+            </div>
+            <div class="card-body">
+                <p class="small text-muted mb-3">
+                    Keep your account secure by using a strong password and keeping your contact information up to date.
+                </p>
+                
+                <div class="d-grid">
+                    <a href="{{ url_for('reset_request') }}" class="btn btn-outline-secondary btn-sm">
+                        <i class="bi bi-key me-2"></i>Reset Password via Email
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

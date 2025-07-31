@@ -1,0 +1,251 @@
+{% extends "base.html" %}
+
+{% block title %}Reports - PillPal{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-12">
+        <h2 class="h4 mb-1"><i class="bi bi-graph-up me-2"></i>Medication Adherence Reports</h2>
+        <p class="text-muted">Track medication compliance across your family members</p>
+    </div>
+</div>
+
+{% if adherence_data %}
+<!-- Summary Cards -->
+<div class="row mb-4">
+    <div class="col-md-3 col-sm-6 mb-3">
+        <div class="card">
+            <div class="card-body text-center">
+                <div class="text-primary mb-2">
+                    <i class="bi bi-people-fill" style="font-size: 2rem;"></i>
+                </div>
+                <h4 class="mb-1">{{ adherence_data|length }}</h4>
+                <p class="text-muted mb-0">Family Members</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3 col-sm-6 mb-3">
+        <div class="card">
+            <div class="card-body text-center">
+                <div class="text-success mb-2">
+                    <i class="bi bi-check-circle-fill" style="font-size: 2rem;"></i>
+                </div>
+                <h4 class="mb-1">{{ adherence_data|sum(attribute='taken_count') }}</h4>
+                <p class="text-muted mb-0">Doses Taken</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3 col-sm-6 mb-3">
+        <div class="card">
+            <div class="card-body text-center">
+                <div class="text-danger mb-2">
+                    <i class="bi bi-x-circle-fill" style="font-size: 2rem;"></i>
+                </div>
+                <h4 class="mb-1">{{ adherence_data|sum(attribute='missed_count') }}</h4>
+                <p class="text-muted mb-0">Doses Missed</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3 col-sm-6 mb-3">
+        <div class="card">
+            <div class="card-body text-center">
+                <div class="text-warning mb-2">
+                    <i class="bi bi-percent" style="font-size: 2rem;"></i>
+                </div>
+                <h4 class="mb-1">{{ "%.1f"|format((adherence_data|sum(attribute='taken_count') / adherence_data|sum(attribute='total_scheduled') * 100) if adherence_data|sum(attribute='total_scheduled') > 0 else 0) }}%</h4>
+                <p class="text-muted mb-0">Overall Adherence</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Individual Member Reports -->
+<div class="row">
+    {% for data in adherence_data %}
+    <div class="col-lg-6 mb-4">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">
+                    <i class="bi bi-person-circle me-2"></i>{{ data.member.name }}
+                </h5>
+                <span class="badge {% if data.adherence_rate >= 80 %}bg-success{% elif data.adherence_rate >= 60 %}bg-warning{% else %}bg-danger{% endif %}">
+                    {{ "%.1f"|format(data.adherence_rate) }}%
+                </span>
+            </div>
+            <div class="card-body">
+                <div class="row text-center mb-3">
+                    <div class="col-4">
+                        <div class="h4 text-success mb-1">{{ data.taken_count }}</div>
+                        <small class="text-muted">Taken</small>
+                    </div>
+                    <div class="col-4">
+                        <div class="h4 text-danger mb-1">{{ data.missed_count }}</div>
+                        <small class="text-muted">Missed</small>
+                    </div>
+                    <div class="col-4">
+                        <div class="h4 text-secondary mb-1">{{ data.total_scheduled - data.taken_count - data.missed_count }}</div>
+                        <small class="text-muted">Pending/Skipped</small>
+                    </div>
+                </div>
+                
+                <div class="mb-3">
+                    <div class="d-flex justify-content-between align-items-center mb-1">
+                        <small class="text-muted">Adherence Rate</small>
+                        <small class="fw-medium">{{ "%.1f"|format(data.adherence_rate) }}%</small>
+                    </div>
+                    <div class="progress" style="height: 8px;">
+                        <div class="progress-bar {% if data.adherence_rate >= 80 %}bg-success{% elif data.adherence_rate >= 60 %}bg-warning{% else %}bg-danger{% endif %}" 
+                             role="progressbar" style="width: {{ data.adherence_rate }}%"></div>
+                    </div>
+                </div>
+                
+                <div class="row small text-muted">
+                    <div class="col-6">
+                        <i class="bi bi-capsule me-1"></i>
+                        {{ data.member.medications|selectattr('is_active', 'equalto', true)|list|length }} active medications
+                    </div>
+                    <div class="col-6">
+                        <i class="bi bi-calendar-week me-1"></i>
+                        Last 30 days
+                    </div>
+                </div>
+                
+                <div class="mt-3">
+                    <a href="{{ url_for('member_detail', member_id=data.member.id) }}" 
+                       class="btn btn-outline-primary btn-sm">
+                        <i class="bi bi-eye me-1"></i>View Details
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+
+<!-- Adherence Trends -->
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="bi bi-graph-up me-2"></i>Adherence Performance</h5>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>Family Member</th>
+                                <th>Total Scheduled</th>
+                                <th>Taken</th>
+                                <th>Missed</th>
+                                <th>Adherence Rate</th>
+                                <th>Performance</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for data in adherence_data|sort(attribute='adherence_rate', reverse=true) %}
+                            <tr>
+                                <td>
+                                    <div class="d-flex align-items-center">
+                                        <div class="bg-primary rounded-circle d-flex align-items-center justify-content-center me-2" 
+                                             style="width: 32px; height: 32px;">
+                                            <i class="bi bi-person-fill text-white small"></i>
+                                        </div>
+                                        <div>
+                                            <div class="fw-medium">{{ data.member.name }}</div>
+                                            <small class="text-muted">{{ data.member.relation.title() }}</small>
+                                        </div>
+                                    </div>
+                                </td>
+                                <td>{{ data.total_scheduled }}</td>
+                                <td>
+                                    <span class="text-success">
+                                        <i class="bi bi-check-circle me-1"></i>{{ data.taken_count }}
+                                    </span>
+                                </td>
+                                <td>
+                                    <span class="text-danger">
+                                        <i class="bi bi-x-circle me-1"></i>{{ data.missed_count }}
+                                    </span>
+                                </td>
+                                <td>
+                                    <span class="fw-medium">{{ "%.1f"|format(data.adherence_rate) }}%</span>
+                                </td>
+                                <td>
+                                    {% if data.adherence_rate >= 90 %}
+                                    <span class="badge bg-success">Excellent</span>
+                                    {% elif data.adherence_rate >= 80 %}
+                                    <span class="badge bg-success">Good</span>
+                                    {% elif data.adherence_rate >= 60 %}
+                                    <span class="badge bg-warning">Fair</span>
+                                    {% else %}
+                                    <span class="badge bg-danger">Needs Improvement</span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Recommendations -->
+<div class="row mt-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="bi bi-lightbulb me-2"></i>Recommendations</h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    {% for data in adherence_data %}
+                        {% if data.adherence_rate < 80 %}
+                        <div class="col-md-6 mb-3">
+                            <div class="alert alert-warning">
+                                <h6 class="alert-heading">{{ data.member.name }}</h6>
+                                <p class="mb-2">Adherence rate is {{ "%.1f"|format(data.adherence_rate) }}% - below the recommended 80%.</p>
+                                <ul class="mb-0 small">
+                                    <li>Consider setting additional reminders</li>
+                                    <li>Review medication schedule with doctor</li>
+                                    <li>Discuss any side effects or concerns</li>
+                                </ul>
+                            </div>
+                        </div>
+                        {% endif %}
+                    {% endfor %}
+                    
+                    {% if adherence_data|selectattr('adherence_rate', 'lt', 80)|list|length == 0 %}
+                    <div class="col-12">
+                        <div class="alert alert-success">
+                            <h6 class="alert-heading"><i class="bi bi-check-circle me-2"></i>Great Job!</h6>
+                            <p class="mb-0">All family members are maintaining good medication adherence (80% or higher). Keep up the excellent work!</p>
+                        </div>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% else %}
+<!-- No Data State -->
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-body text-center py-5">
+                <i class="bi bi-graph-up text-muted" style="font-size: 4rem;"></i>
+                <h4 class="mt-3 text-muted">No Report Data Available</h4>
+                <p class="text-muted">Add family members and medications to start tracking adherence.</p>
+                <a href="{{ url_for('add_member') }}" class="btn btn-primary">
+                    <i class="bi bi-person-plus me-2"></i>Add Family Member
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+{% endblock %}

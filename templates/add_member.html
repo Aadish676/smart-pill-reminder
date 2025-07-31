@@ -1,0 +1,118 @@
+{% extends "base.html" %}
+
+{% block title %}Add Family Member - PillPal{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-lg-8 col-xl-6">
+        <div class="card">
+            <div class="card-header">
+                <h4 class="mb-0"><i class="bi bi-person-plus me-2"></i>Add Family Member</h4>
+            </div>
+            <div class="card-body">
+                <form method="POST">
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label for="name" class="form-label">Full Name *</label>
+                            <input type="text" class="form-control" id="name" name="name" required>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label for="relation" class="form-label">Relationship *</label>
+                            <select class="form-select" id="relation" name="relation" required>
+                                <option value="">Select relationship</option>
+                                <option value="self">Self</option>
+                                <option value="spouse">Spouse</option>
+                                <option value="child">Child</option>
+                                <option value="parent">Parent</option>
+                                <option value="sibling">Sibling</option>
+                                <option value="grandparent">Grandparent</option>
+                                <option value="grandchild">Grandchild</option>
+                                <option value="other">Other</option>
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label for="phone" class="form-label">Phone Number</label>
+                            <input type="tel" class="form-control" id="phone" name="phone" 
+                                   placeholder="+1 (555) 123-4567">
+                            <div class="form-text">Used for SMS medication reminders</div>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label for="email" class="form-label">Email Address</label>
+                            <input type="email" class="form-control" id="email" name="email">
+                            <div class="form-text">Used for email medication reminders</div>
+                        </div>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label for="date_of_birth" class="form-label">Date of Birth</label>
+                            <input type="date" class="form-control" id="date_of_birth" name="date_of_birth">
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label for="emergency_contact" class="form-label">Emergency Contact</label>
+                            <input type="tel" class="form-control" id="emergency_contact" name="emergency_contact" 
+                                   placeholder="+1 (555) 123-4567">
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="medical_conditions" class="form-label">Medical Conditions</label>
+                        <textarea class="form-control" id="medical_conditions" name="medical_conditions" 
+                                  rows="3" placeholder="List any chronic conditions, health issues, etc."></textarea>
+                    </div>
+                    
+                    <div class="mb-4">
+                        <label for="allergies" class="form-label">Allergies</label>
+                        <textarea class="form-control" id="allergies" name="allergies" 
+                                  rows="3" placeholder="List any drug allergies, food allergies, etc."></textarea>
+                    </div>
+                    
+                    <div class="d-flex gap-2">
+                        <button type="submit" class="btn btn-primary">
+                            <i class="bi bi-check-circle me-2"></i>Add Family Member
+                        </button>
+                        <a href="{{ url_for('home') }}" class="btn btn-outline-secondary">
+                            <i class="bi bi-x-circle me-2"></i>Cancel
+                        </a>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-lg-4 col-xl-6">
+        <div class="card">
+            <div class="card-header">
+                <h6 class="mb-0"><i class="bi bi-info-circle me-2"></i>Why We Need This Information</h6>
+            </div>
+            <div class="card-body">
+                <ul class="list-unstyled">
+                    <li class="mb-2">
+                        <i class="bi bi-telephone text-primary me-2"></i>
+                        <strong>Phone & Email:</strong> For medication reminders and alerts
+                    </li>
+                    <li class="mb-2">
+                        <i class="bi bi-calendar text-primary me-2"></i>
+                        <strong>Date of Birth:</strong> For age-appropriate medication tracking
+                    </li>
+                    <li class="mb-2">
+                        <i class="bi bi-heart-pulse text-primary me-2"></i>
+                        <strong>Medical Conditions:</strong> To help track medication effectiveness
+                    </li>
+                    <li class="mb-2">
+                        <i class="bi bi-shield-exclamation text-primary me-2"></i>
+                        <strong>Allergies:</strong> Important safety information for medications
+                    </li>
+                    <li class="mb-0">
+                        <i class="bi bi-telephone-forward text-primary me-2"></i>
+                        <strong>Emergency Contact:</strong> For urgent medication-related situations
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

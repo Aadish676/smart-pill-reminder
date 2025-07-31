@@ -1,63 +1,300 @@
 {% extends "base.html" %}
+
+{% block title %}Dashboard - PillPal{% endblock %}
+
 {% block content %}
-<h2>Your Family Members</h2>
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="d-flex justify-content-between align-items-center">
+            <div>
+                <h1 class="h3 mb-1">Good {{ "morning" if moment().hour < 12 else ("afternoon" if moment().hour < 18 else "evening") }}, {{ current_user.first_name }}!</h1>
+                <p class="text-muted">Here's your family's medication overview for today</p>
+            </div>
+            <a href="{{ url_for('add_member') }}" class="btn btn-primary">
+                <i class="bi bi-person-plus me-2"></i>Add Family Member
+            </a>
+        </div>
+    </div>
+</div>
 
-<table class="table table-bordered">
-  <thead>
-    <tr>
-      <th>Name</th>
-      <th>Phone</th>
-      <th>Relation</th>
-      <th>Pills</th>
-      <th>Add Pill</th>
-    </tr>
-  </thead>
-  <tbody>
-    {% for member in members %}
-    <tr>
-      <td>{{ member.name }}</td>
-      <td>{{ member.phone }}</td>
-      <td>{{ member.relation }}</td>
-      <td>
-        <ul>
-          {% for pill in member.pills %}
-            <li>{{ pill.name }} at {{ pill.time }} - {{ pill.status }}</li>
-          {% else %}
-            <li>No pills added</li>
-          {% endfor %}
-        </ul>
-      </td>
-      <td>
-        <form method="POST" action="{{ url_for('add_pill', member_id=member.id) }}">
-          <input type="text" name="pill_name" placeholder="Pill Name" required class="form-control mb-1" />
-          <input type="time" name="pill_time" required class="form-control mb-1" />
-          <button type="submit" class="btn btn-primary btn-sm">Add</button>
-        </form>
-      </td>
-    </tr>
-    {% else %}
-    <tr><td colspan="5">No family members added yet.</td></tr>
-    {% endfor %}
-  </tbody>
-</table>
+<!-- Quick Stats -->
+<div class="row mb-4">
+    <div class="col-md-3 col-sm-6 mb-3">
+        <div class="card">
+            <div class="card-body text-center">
+                <div class="text-primary mb-2">
+                    <i class="bi bi-people-fill" style="font-size: 2rem;"></i>
+                </div>
+                <h4 class="mb-1">{{ members|length }}</h4>
+                <p class="text-muted mb-0">Family Members</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3 col-sm-6 mb-3">
+        <div class="card">
+            <div class="card-body text-center">
+                <div class="text-warning mb-2">
+                    <i class="bi bi-clock-fill" style="font-size: 2rem;"></i>
+                </div>
+                <h4 class="mb-1">{{ today_medications|selectattr('log.status', 'equalto', 'pending')|list|length }}</h4>
+                <p class="text-muted mb-0">Pending Today</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3 col-sm-6 mb-3">
+        <div class="card">
+            <div class="card-body text-center">
+                <div class="text-success mb-2">
+                    <i class="bi bi-check-circle-fill" style="font-size: 2rem;"></i>
+                </div>
+                <h4 class="mb-1">{{ today_medications|selectattr('log.status', 'equalto', 'taken')|list|length }}</h4>
+                <p class="text-muted mb-0">Taken Today</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3 col-sm-6 mb-3">
+        <div class="card">
+            <div class="card-body text-center">
+                <div class="text-danger mb-2">
+                    <i class="bi bi-exclamation-triangle-fill" style="font-size: 2rem;"></i>
+                </div>
+                <h4 class="mb-1">{{ low_stock_medications|length }}</h4>
+                <p class="text-muted mb-0">Need Refill</p>
+            </div>
+        </div>
+    </div>
+</div>
 
-<h3>Add Family Member</h3>
-<form method="POST" action="{{ url_for('add_member') }}">
-  <div class="mb-3">
-    <input type="text" name="name" placeholder="Name" required class="form-control" />
-  </div>
-  <div class="mb-3">
-    <input type="text" name="phone" placeholder="Phone Number" required class="form-control" />
-  </div>
-  <div class="mb-3">
-    <input type="text" name="relation" placeholder="Relation" required class="form-control" />
-  </div>
-  <button type="submit" class="btn btn-success">Add Member</button>
-</form>
+<!-- Low Stock Alerts -->
+{% if low_stock_medications %}
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="alert alert-warning" role="alert">
+            <h6 class="alert-heading"><i class="bi bi-exclamation-triangle me-2"></i>Refill Needed</h6>
+            <p class="mb-2">The following medications are running low:</p>
+            <ul class="mb-0">
+                {% for item in low_stock_medications %}
+                <li><strong>{{ item.member.name }}</strong>: {{ item.medication.name }} 
+                    ({{ item.medication.remaining_quantity }} doses remaining)</li>
+                {% endfor %}
+            </ul>
+        </div>
+    </div>
+</div>
+{% endif %}
 
-<h3 class="mt-5">Upload Prescription (OCR)</h3>
-<form method="POST" action="{{ url_for('upload_prescription') }}" enctype="multipart/form-data">
-  <input type="file" name="prescription" accept="image/*,.pdf" required class="form-control mb-2" />
-  <button type="submit" class="btn btn-info">Upload & Extract</button>
-</form>
+<!-- Today's Medications -->
+{% if today_medications %}
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0"><i class="bi bi-calendar-day me-2"></i>Today's Medications</h5>
+                <span class="badge bg-primary">{{ today_medications|length }} scheduled</span>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    {% for item in today_medications %}
+                    <div class="col-lg-6 col-xl-4 mb-3">
+                        <div class="card medication-card h-100">
+                            <div class="card-body">
+                                <div class="d-flex justify-content-between align-items-start mb-2">
+                                    <h6 class="card-title mb-1">{{ item.medication.name }}</h6>
+                                    <span class="status-badge status-{{ item.log.status }}">
+                                        {{ item.log.status.title() }}
+                                    </span>
+                                </div>
+                                <p class="text-muted small mb-2">
+                                    <i class="bi bi-person me-1"></i>{{ item.member.name }}
+                                </p>
+                                <p class="card-text small mb-2">
+                                    <i class="bi bi-clock me-1"></i>{{ item.schedule.time.strftime('%I:%M %p') }}
+                                    <br>
+                                    <i class="bi bi-capsule me-1"></i>{{ item.medication.dosage }}
+                                    {% if item.schedule.meal_timing %}
+                                    <br>
+                                    <i class="bi bi-info-circle me-1"></i>{{ item.schedule.meal_timing.replace('_', ' ').title() }}
+                                    {% endif %}
+                                </p>
+                                
+                                {% if item.log.status == 'pending' %}
+                                <div class="btn-group w-100" role="group">
+                                    <button type="button" class="btn btn-success btn-sm" 
+                                            onclick="markMedication({{ item.log.id }}, 'taken')">
+                                        <i class="bi bi-check"></i> Taken
+                                    </button>
+                                    <button type="button" class="btn btn-warning btn-sm" 
+                                            onclick="markMedication({{ item.log.id }}, 'missed')">
+                                        <i class="bi bi-x"></i> Missed
+                                    </button>
+                                    <button type="button" class="btn btn-secondary btn-sm" 
+                                            onclick="markMedication({{ item.log.id }}, 'skipped')">
+                                        <i class="bi bi-skip-forward"></i> Skip
+                                    </button>
+                                </div>
+                                {% elif item.log.status == 'taken' %}
+                                <div class="text-success small">
+                                    <i class="bi bi-check-circle me-1"></i>
+                                    Taken at {{ item.log.taken_time.strftime('%I:%M %p') if item.log.taken_time }}
+                                </div>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<!-- Family Members -->
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="bi bi-people me-2"></i>Family Members</h5>
+            </div>
+            <div class="card-body">
+                {% if members %}
+                <div class="row">
+                    {% for member in members %}
+                    <div class="col-lg-6 col-xl-4 mb-3">
+                        <div class="card medication-card h-100">
+                            <div class="card-body">
+                                <div class="d-flex align-items-center mb-3">
+                                    <div class="bg-primary rounded-circle d-flex align-items-center justify-content-center me-3" 
+                                         style="width: 50px; height: 50px;">
+                                        <i class="bi bi-person-fill text-white"></i>
+                                    </div>
+                                    <div>
+                                        <h6 class="mb-1">{{ member.name }}</h6>
+                                        <p class="text-muted small mb-0">{{ member.relation.title() }}</p>
+                                        {% if member.age %}
+                                        <p class="text-muted small mb-0">Age: {{ member.age }}</p>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                                
+                                <div class="mb-3">
+                                    <p class="small mb-1">
+                                        <i class="bi bi-capsule me-1"></i>
+                                        Active Medications: {{ member.medications|selectattr('is_active', 'equalto', true)|list|length }}
+                                    </p>
+                                    {% if member.phone %}
+                                    <p class="small mb-1">
+                                        <i class="bi bi-phone me-1"></i>{{ member.phone }}
+                                    </p>
+                                    {% endif %}
+                                    {% if member.email %}
+                                    <p class="small mb-1">
+                                        <i class="bi bi-envelope me-1"></i>{{ member.email }}
+                                    </p>
+                                    {% endif %}
+                                </div>
+                                
+                                <div class="d-grid gap-2">
+                                    <a href="{{ url_for('member_detail', member_id=member.id) }}" 
+                                       class="btn btn-outline-primary btn-sm">
+                                        <i class="bi bi-eye me-1"></i>View Details
+                                    </a>
+                                    <a href="{{ url_for('add_medication', member_id=member.id) }}" 
+                                       class="btn btn-primary btn-sm">
+                                        <i class="bi bi-plus-circle me-1"></i>Add Medication
+                                    </a>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <div class="text-center py-5">
+                    <i class="bi bi-people text-muted" style="font-size: 4rem;"></i>
+                    <h4 class="mt-3 text-muted">No Family Members Yet</h4>
+                    <p class="text-muted">Add your first family member to start tracking medications</p>
+                    <a href="{{ url_for('add_member') }}" class="btn btn-primary">
+                        <i class="bi bi-person-plus me-2"></i>Add Family Member
+                    </a>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Recent Activity -->
+{% if recent_logs %}
+<div class="row mt-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="bi bi-clock-history me-2"></i>Recent Activity</h5>
+            </div>
+            <div class="card-body">
+                <div class="list-group list-group-flush">
+                    {% for log in recent_logs[:5] %}
+                    <div class="list-group-item d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="mb-1">{{ log.patient.name }} - {{ log.medication.name }}</h6>
+                            <p class="mb-1 small text-muted">
+                                Scheduled: {{ log.scheduled_time.strftime('%b %d, %Y at %I:%M %p') }}
+                            </p>
+                            {% if log.notes %}
+                            <p class="mb-0 small">Notes: {{ log.notes }}</p>
+                            {% endif %}
+                        </div>
+                        <span class="status-badge status-{{ log.status }}">
+                            {{ log.status.title() }}
+                        </span>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+function markMedication(logId, status) {
+    const notes = status === 'missed' ? prompt('Optional notes (e.g., reason for missing):') : 
+                  status === 'skipped' ? prompt('Optional notes (e.g., reason for skipping):') :
+                  status === 'taken' ? prompt('Optional notes (e.g., any side effects):') : '';
+    
+    fetch(`/api/medication_log/${logId}/status`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            status: status,
+            notes: notes || ''
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            location.reload();
+        } else {
+            alert('Error updating medication status: ' + data.error);
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('Error updating medication status');
+    });
+}
+
+// Add current time helper
+function moment() {
+    const now = new Date();
+    return {
+        hour: now.getHours()
+    };
+}
+</script>
 {% endblock %}

@@ -1,0 +1,249 @@
+{% extends "base.html" %}
+
+{% block title %}Add Medication for {{ member.name }} - PillPal{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <div class="d-flex align-items-center mb-4">
+            <a href="{{ url_for('member_detail', member_id=member.id) }}" class="btn btn-outline-secondary me-3">
+                <i class="bi bi-arrow-left"></i>
+            </a>
+            <div>
+                <h2 class="h4 mb-1">Add Medication</h2>
+                <p class="text-muted mb-0">For {{ member.name }}</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<form method="POST">
+    <div class="row">
+        <!-- Medication Details -->
+        <div class="col-lg-8">
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5 class="mb-0"><i class="bi bi-capsule me-2"></i>Medication Information</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label for="name" class="form-label">Medication Name *</label>
+                            <input type="text" class="form-control" id="name" name="name" required 
+                                   placeholder="e.g., Lisinopril">
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label for="generic_name" class="form-label">Generic Name</label>
+                            <input type="text" class="form-control" id="generic_name" name="generic_name" 
+                                   placeholder="e.g., Enalapril">
+                        </div>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-4 mb-3">
+                            <label for="dosage" class="form-label">Dosage *</label>
+                            <input type="text" class="form-control" id="dosage" name="dosage" required 
+                                   placeholder="e.g., 10mg, 2 tablets">
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <label for="form" class="form-label">Form *</label>
+                            <select class="form-select" id="form" name="form" required>
+                                <option value="">Select form</option>
+                                <option value="tablet">Tablet</option>
+                                <option value="capsule">Capsule</option>
+                                <option value="liquid">Liquid</option>
+                                <option value="injection">Injection</option>
+                                <option value="cream">Cream/Ointment</option>
+                                <option value="drops">Drops</option>
+                                <option value="inhaler">Inhaler</option>
+                                <option value="patch">Patch</option>
+                                <option value="other">Other</option>
+                            </select>
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <label for="prescribing_doctor" class="form-label">Prescribing Doctor</label>
+                            <input type="text" class="form-control" id="prescribing_doctor" name="prescribing_doctor" 
+                                   placeholder="Dr. Smith">
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="instructions" class="form-label">Special Instructions</label>
+                        <textarea class="form-control" id="instructions" name="instructions" rows="2" 
+                                  placeholder="e.g., Take with food, Avoid alcohol, etc."></textarea>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Schedule Information -->
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5 class="mb-0"><i class="bi bi-clock me-2"></i>Schedule Information</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label for="frequency" class="form-label">Frequency *</label>
+                            <select class="form-select" id="frequency" name="frequency" required onchange="toggleFrequencyDetails()">
+                                <option value="">Select frequency</option>
+                                <option value="daily">Daily</option>
+                                <option value="weekly">Weekly</option>
+                                <option value="monthly">Monthly</option>
+                                <option value="as_needed">As Needed</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label for="meal_timing" class="form-label">Meal Timing</label>
+                            <select class="form-select" id="meal_timing" name="meal_timing">
+                                <option value="">No specific timing</option>
+                                <option value="before_meal">Before meals</option>
+                                <option value="with_meal">With meals</option>
+                                <option value="after_meal">After meals</option>
+                                <option value="empty_stomach">On empty stomach</option>
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3" id="frequency_details_container" style="display: none;">
+                        <label for="frequency_details" class="form-label">Frequency Details</label>
+                        <input type="text" class="form-control" id="frequency_details" name="frequency_details" 
+                               placeholder="e.g., Mon,Wed,Fri or 1,3,5">
+                        <div class="form-text">For weekly: specify days (Mon,Tue,Wed) or numbers (1=Monday)</div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Medication Times *</label>
+                        <div id="schedule_times">
+                            <div class="input-group mb-2">
+                                <input type="time" class="form-control" name="schedule_time" required>
+                                <button type="button" class="btn btn-outline-danger" onclick="removeTimeSlot(this)" disabled>
+                                    <i class="bi bi-trash"></i>
+                                </button>
+                            </div>
+                        </div>
+                        <button type="button" class="btn btn-outline-primary btn-sm" onclick="addTimeSlot()">
+                            <i class="bi bi-plus-circle me-1"></i>Add Another Time
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Prescription & Quantity Info -->
+        <div class="col-lg-4">
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h6 class="mb-0"><i class="bi bi-file-medical me-2"></i>Prescription Details</h6>
+                </div>
+                <div class="card-body">
+                    <div class="mb-3">
+                        <label for="prescription_date" class="form-label">Prescription Date</label>
+                        <input type="date" class="form-control" id="prescription_date" name="prescription_date">
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="start_date" class="form-label">Start Date *</label>
+                        <input type="date" class="form-control" id="start_date" name="start_date" required>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="end_date" class="form-label">End Date</label>
+                        <input type="date" class="form-control" id="end_date" name="end_date">
+                        <div class="form-text">Leave blank for ongoing medication</div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h6 class="mb-0"><i class="bi bi-boxes me-2"></i>Quantity Tracking</h6>
+                </div>
+                <div class="card-body">
+                    <div class="mb-3">
+                        <label for="total_quantity" class="form-label">Total Quantity</label>
+                        <input type="number" class="form-control" id="total_quantity" name="total_quantity" min="1" 
+                               placeholder="e.g., 30">
+                        <div class="form-text">Total pills/doses prescribed</div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="remaining_quantity" class="form-label">Current Remaining</label>
+                        <input type="number" class="form-control" id="remaining_quantity" name="remaining_quantity" min="0" 
+                               placeholder="e.g., 30">
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="refill_reminder_threshold" class="form-label">Refill Alert Threshold</label>
+                        <input type="number" class="form-control" id="refill_reminder_threshold" name="refill_reminder_threshold" 
+                               value="5" min="1">
+                        <div class="form-text">Alert when this many or fewer remain</div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="d-grid gap-2">
+                <button type="submit" class="btn btn-primary">
+                    <i class="bi bi-check-circle me-2"></i>Add Medication
+                </button>
+                <a href="{{ url_for('member_detail', member_id=member.id) }}" class="btn btn-outline-secondary">
+                    <i class="bi bi-x-circle me-2"></i>Cancel
+                </a>
+            </div>
+        </div>
+    </div>
+</form>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function toggleFrequencyDetails() {
+    const frequency = document.getElementById('frequency').value;
+    const container = document.getElementById('frequency_details_container');
+    
+    if (frequency === 'weekly') {
+        container.style.display = 'block';
+        document.getElementById('frequency_details').placeholder = 'e.g., Mon,Wed,Fri or 1,3,5';
+    } else {
+        container.style.display = 'none';
+    }
+}
+
+function addTimeSlot() {
+    const container = document.getElementById('schedule_times');
+    const newSlot = document.createElement('div');
+    newSlot.className = 'input-group mb-2';
+    newSlot.innerHTML = `
+        <input type="time" class="form-control" name="schedule_time">
+        <button type="button" class="btn btn-outline-danger" onclick="removeTimeSlot(this)">
+            <i class="bi bi-trash"></i>
+        </button>
+    `;
+    container.appendChild(newSlot);
+    updateRemoveButtons();
+}
+
+function removeTimeSlot(button) {
+    button.closest('.input-group').remove();
+    updateRemoveButtons();
+}
+
+function updateRemoveButtons() {
+    const timeSlots = document.querySelectorAll('#schedule_times .input-group');
+    timeSlots.forEach((slot, index) => {
+        const removeBtn = slot.querySelector('button');
+        removeBtn.disabled = timeSlots.length === 1;
+    });
+}
+
+// Set default start date to today
+document.getElementById('start_date').valueAsDate = new Date();
+
+// Auto-fill remaining quantity when total quantity is entered
+document.getElementById('total_quantity').addEventListener('input', function() {
+    const remainingField = document.getElementById('remaining_quantity');
+    if (!remainingField.value) {
+        remainingField.value = this.value;
+    }
+});
+</script>
+{% endblock %}
