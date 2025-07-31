@@ -4,12 +4,14 @@ from flask_login import LoginManager, login_user, logout_user, login_required, c
 from flask_mail import Mail, Message
 from flask_migrate import Migrate
 from apscheduler.schedulers.background import BackgroundScheduler
-from datetime import datetime
+from datetime import datetime, timedelta
 from werkzeug.utils import secure_filename
+from werkzeug.security import generate_password_hash, check_password_hash
 import os
 from dotenv import load_dotenv
 from twilio.rest import Client
 import re
+import secrets
 
 # Load environment variables
 load_dotenv()
@@ -76,9 +78,36 @@ def validate_email(email):
 class User(UserMixin, db.Model):
     id = db.Column(db.Integer, primary_key=True)
     email = db.Column(db.String(120), unique=True, nullable=False)
-    password = db.Column(db.String(120), nullable=False)
-    reset_token = db.Column(db.String(120), nullable=True)
+    password = db.Column(db.String(255), nullable=False)  # Increased length for hashed passwords
+    reset_token = db.Column(db.String(255), nullable=True)
+    reset_token_expiry = db.Column(db.DateTime, nullable=True)  # Token expiry time
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    last_login = db.Column(db.DateTime, nullable=True)
+    is_active = db.Column(db.Boolean, default=True)
     family_members = db.relationship('FamilyMember', backref='owner', lazy=True)
+    
+    def set_password(self, password):
+        """Set password hash"""
+        self.password = generate_password_hash(password)
+    
+    def check_password(self, password):
+        """Check password hash"""
+        return check_password_hash(self.password, password)
+    
+    def generate_reset_token(self):
+        """Generate a reset token with expiry"""
+        self.reset_token = secrets.token_hex(32)
+        self.reset_token_expiry = datetime.utcnow() + timedelta(hours=1)  # 1 hour expiry
+        db.session.commit()
+        return self.reset_token
+    
+    def verify_reset_token(self, token):
+        """Verify reset token and check expiry"""
+        if (self.reset_token == token and 
+            self.reset_token_expiry and 
+            datetime.utcnow() < self.reset_token_expiry):
+            return True
+        return False
 
 class FamilyMember(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -144,12 +173,28 @@ def test_notification():
             
         if email_recipients:
             try:
-                msg = Message('Test Pill Reminder', 
-                             recipients=email_recipients, 
-                             body=msg_body)
+                current_date = datetime.now().strftime("%A, %B %d, %Y at %I:%M %p")
+                
+                # Create beautiful HTML email for test
+                html_content = render_template('email/pill_reminder.html',
+                    patient_name=member.name,
+                    patient_phone=member.phone,
+                    patient_email=member.email,
+                    pill_name="Test Medication",
+                    pill_time=now,
+                    current_date=current_date,
+                    recipient_email=', '.join(email_recipients)
+                )
+                
+                msg = Message(
+                    subject=f'🧪 Test Medication Reminder: {member.name}',
+                    recipients=email_recipients,
+                    html=html_content,
+                    body=msg_body
+                )
                 mail.send(msg)
                 recipients_str = ', '.join(email_recipients)
-                results.append(f"✓ Email sent successfully to {recipients_str}")
+                results.append(f"✓ Beautiful HTML email sent successfully to {recipients_str}")
             except Exception as e:
                 results.append(f"✗ Email failed: {str(e)}")
         else:
@@ -192,7 +237,7 @@ def test_notification():
 @app.route('/register', methods=['GET', 'POST'])
 def register():
     if request.method == 'POST':
-        email = request.form['email']
+        email = request.form['email'].strip().lower()
         password = request.form['password']
         
         # Validate email format
@@ -204,24 +249,41 @@ def register():
             flash('Email already registered.', 'error')
             return redirect(url_for('register'))
             
-        if len(password) < 6:
-            flash('Password must be at least 6 characters long.', 'error')
+        if len(password) < 8:
+            flash('Password must be at least 8 characters long.', 'error')
             return redirect(url_for('register'))
             
-        db.session.add(User(email=email, password=password))
+        # Check password strength
+        if not re.search(r'[A-Z]', password):
+            flash('Password must contain at least one uppercase letter.', 'error')
+            return redirect(url_for('register'))
+        if not re.search(r'[0-9]', password):
+            flash('Password must contain at least one number.', 'error')
+            return redirect(url_for('register'))
+            
+        user = User(email=email)
+        user.set_password(password)
+        db.session.add(user)
         db.session.commit()
-        flash('Registered successfully.', 'success')
+        flash('Account created successfully! You can now log in.', 'success')
         return redirect(url_for('login'))
     return render_template('register.html')
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     if request.method == 'POST':
-        user = User.query.filter_by(email=request.form['email']).first()
-        if user and user.password == request.form['password']:
+        email = request.form['email'].strip().lower()
+        password = request.form['password']
+        
+        user = User.query.filter_by(email=email).first()
+        if user and user.is_active and user.check_password(password):
+            user.last_login = datetime.utcnow()
+            db.session.commit()
             login_user(user)
+            flash(f'Welcome back! Logged in successfully.', 'success')
             return redirect(url_for('home'))
-        flash('Invalid credentials.')
+        else:
+            flash('Invalid email or password. Please try again.', 'error')
     return render_template('login.html')
 
 @app.route('/logout')
@@ -360,31 +422,57 @@ def upload_prescription():
 @app.route('/reset_request', methods=['GET', 'POST'])
 def reset_request():
     if request.method == 'POST':
-        user = User.query.filter_by(email=request.form['email']).first()
-        if user:
-            user.reset_token = os.urandom(8).hex()
-            db.session.commit()
-            reset_url = url_for('reset_password', token=user.reset_token, _external=True)
-            mail.send(Message("Password Reset", recipients=[user.email], body=f"Reset here: {reset_url}"))
-            flash('Reset link sent.')
+        email = request.form['email'].strip().lower()
+        user = User.query.filter_by(email=email).first()
+        if user and user.is_active:
+            if mail:
+                token = user.generate_reset_token()
+                reset_url = url_for('reset_password', token=token, _external=True)
+                
+                # Send HTML email
+                msg = Message(
+                    "Password Reset Request - Smart Pill Reminder",
+                    recipients=[user.email],
+                    html=render_template('email/password_reset.html', 
+                                       user=user, reset_url=reset_url),
+                    body=f"Click here to reset your password: {reset_url}"
+                )
+                mail.send(msg)
+                flash('Password reset instructions have been sent to your email.', 'success')
+            else:
+                flash('Email service is not configured. Please contact support.', 'error')
         else:
-            flash('Email not found.')
+            # Don't reveal if email exists or not for security
+            flash('If that email exists in our system, you will receive reset instructions.', 'info')
         return redirect(url_for('login'))
     return render_template('reset_request.html')
 
 @app.route('/reset_password/<token>', methods=['GET', 'POST'])
 def reset_password(token):
     user = User.query.filter_by(reset_token=token).first()
-    if not user:
-        flash('Invalid or expired token.')
+    if not user or not user.verify_reset_token(token):
+        flash('Invalid or expired password reset token.', 'error')
         return redirect(url_for('login'))
+    
     if request.method == 'POST':
-        user.password = request.form['password']
+        password = request.form['password']
+        confirm_password = request.form['confirm_password']
+        
+        if password != confirm_password:
+            flash('Passwords do not match.', 'error')
+            return render_template('reset_password.html', token=token)
+            
+        if len(password) < 8:
+            flash('Password must be at least 8 characters long.', 'error')
+            return render_template('reset_password.html', token=token)
+            
+        user.set_password(password)
         user.reset_token = None
+        user.reset_token_expiry = None
         db.session.commit()
-        flash('Password updated.')
+        flash('Your password has been updated successfully!', 'success')
         return redirect(url_for('login'))
-    return render_template('reset_password.html')
+    return render_template('reset_password.html', token=token)
 
 scheduler = BackgroundScheduler()
 
@@ -433,14 +521,28 @@ def send_reminders():
                     
                 if email_recipients:
                     try:
+                        current_date = datetime.now().strftime("%A, %B %d, %Y at %I:%M %p")
+                        
+                        # Create beautiful HTML email
+                        html_content = render_template('email/pill_reminder.html',
+                            patient_name=member.name,
+                            patient_phone=member.phone,
+                            patient_email=member.email,
+                            pill_name=pill.name,
+                            pill_time=pill.time,
+                            current_date=current_date,
+                            recipient_email=', '.join(email_recipients)
+                        )
+                        
                         msg = Message(
-                            subject='Pill Reminder - ' + pill.name,
+                            subject=f'💊 Medication Reminder: {pill.name} for {member.name}',
                             recipients=email_recipients,
-                            body=msg_body
+                            html=html_content,
+                            body=msg_body  # Fallback plain text
                         )
                         mail.send(msg)
                         recipients_str = ', '.join(email_recipients)
-                        print(f"[{now}] Email sent to {recipients_str} for {pill.name}")
+                        print(f"[{now}] Beautiful HTML email sent to {recipients_str} for {pill.name}")
                         log_notification(pill.id, 'email', 'sent')
                         notifications_sent = True
                     except Exception as e:

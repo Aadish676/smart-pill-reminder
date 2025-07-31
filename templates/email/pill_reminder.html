@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Medication Reminder - Smart Pill Reminder</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f5f7fa;
+            margin: 0;
+            padding: 0;
+            line-height: 1.6;
+        }
+        .container {
+            max-width: 600px;
+            margin: 0 auto;
+            background-color: #ffffff;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+        }
+        .header {
+            background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+        .header h1 {
+            margin: 0;
+            font-size: 28px;
+            font-weight: 700;
+        }
+        .header .icon {
+            font-size: 50px;
+            margin-bottom: 10px;
+        }
+        .urgent-banner {
+            background: linear-gradient(135deg, #ff6b6b 0%, #ffa726 100%);
+            color: white;
+            padding: 15px;
+            text-align: center;
+            font-weight: 600;
+            font-size: 18px;
+        }
+        .content {
+            padding: 40px 30px;
+        }
+        .medication-card {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            border-radius: 12px;
+            text-align: center;
+            margin: 20px 0;
+            box-shadow: 0 8px 25px rgba(102, 126, 234, 0.3);
+        }
+        .medication-name {
+            font-size: 32px;
+            font-weight: 700;
+            margin-bottom: 10px;
+        }
+        .medication-time {
+            font-size: 20px;
+            opacity: 0.9;
+            margin-bottom: 15px;
+        }
+        .patient-info {
+            background-color: #f8f9fa;
+            border-radius: 12px;
+            padding: 25px;
+            margin: 20px 0;
+            border-left: 4px solid #4facfe;
+        }
+        .patient-info h3 {
+            color: #4facfe;
+            margin-top: 0;
+            font-size: 20px;
+        }
+        .patient-name {
+            font-size: 24px;
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 10px;
+        }
+        .time-display {
+            background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+            color: white;
+            padding: 15px 25px;
+            border-radius: 25px;
+            display: inline-block;
+            font-size: 18px;
+            font-weight: 600;
+            margin: 10px 0;
+        }
+        .health-tips {
+            background-color: #e8f4f8;
+            border-radius: 12px;
+            padding: 25px;
+            margin: 20px 0;
+        }
+        .health-tips h3 {
+            color: #0c5460;
+            margin-top: 0;
+            font-size: 18px;
+        }
+        .health-tips ul {
+            color: #0c5460;
+            margin: 0;
+        }
+        .footer {
+            background-color: #f8f9fa;
+            padding: 30px;
+            text-align: center;
+            color: #666;
+            font-size: 14px;
+        }
+        .footer a {
+            color: #4facfe;
+            text-decoration: none;
+        }
+        .emoji {
+            font-size: 24px;
+            margin-right: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="urgent-banner">
+            ⏰ MEDICATION REMINDER - TIME TO TAKE YOUR MEDICINE
+        </div>
+        
+        <div class="header">
+            <div class="icon">💊</div>
+            <h1>Smart Pill Reminder</h1>
+        </div>
+        
+        <div class="content">
+            <div class="patient-info">
+                <h3>👤 Patient Information</h3>
+                <div class="patient-name">{{ patient_name }}</div>
+                <p><strong>📞 Contact:</strong> {{ patient_phone }}</p>
+                {% if patient_email %}
+                <p><strong>📧 Email:</strong> {{ patient_email }}</p>
+                {% endif %}
+            </div>
+            
+            <div class="medication-card">
+                <div class="medication-name">{{ pill_name }}</div>
+                <div class="medication-time">⏰ Scheduled Time: {{ pill_time }}</div>
+                <div class="time-display">📅 {{ current_date }}</div>
+            </div>
+            
+            <div style="text-align: center; margin: 30px 0;">
+                <h2 style="color: #333; margin-bottom: 15px;">🔔 It's time to take your medication!</h2>
+                <p style="font-size: 18px; color: #666;">Please take your <strong>{{ pill_name }}</strong> now as scheduled.</p>
+            </div>
+            
+            <div class="health-tips">
+                <h3>💡 Medication Tips</h3>
+                <ul>
+                    <li>Take your medication with a full glass of water</li>
+                    <li>Follow the dosage instructions provided by your doctor</li>
+                    <li>If you miss a dose, consult your healthcare provider</li>
+                    <li>Store medications in a cool, dry place</li>
+                    <li>Never share your medications with others</li>
+                </ul>
+            </div>
+            
+            <div style="background-color: #fff3cd; border: 1px solid #ffeaa7; border-radius: 8px; padding: 20px; margin: 20px 0;">
+                <p style="margin: 0; color: #856404;">
+                    <span class="emoji">⚠️</span>
+                    <strong>Important:</strong> This is an automated reminder. If you have any concerns about your medication, please consult your healthcare provider immediately.
+                </p>
+            </div>
+            
+            <div style="text-align: center; margin: 30px 0;">
+                <p style="color: #666; font-size: 16px;">
+                    <span class="emoji">❤️</span>
+                    Stay healthy and take care of yourself!
+                </p>
+            </div>
+        </div>
+        
+        <div class="footer">
+            <p><strong>Smart Pill Reminder</strong></p>
+            <p>Your health is our priority - intelligent medication management</p>
+            <p>📧 Reminder sent to: {{ recipient_email }}</p>
+            <p style="margin-top: 20px; font-size: 12px; color: #999;">
+                This is an automated message. Please do not reply to this email.
+            </p>
+        </div>
+    </div>
+</body>
+</html>
