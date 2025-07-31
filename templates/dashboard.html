@@ -1,6 +1,37 @@
 {% extends "base.html" %}
 {% block content %}
-<h2>Your Family Members</h2>
+<div class="row">
+  <div class="col-md-8">
+    <h2>Your Family Members</h2>
+  </div>
+  <div class="col-md-4 text-end">
+    <a href="{{ url_for('test_notification') }}" class="btn btn-outline-primary btn-sm me-2">
+      📱 Test Notifications
+    </a>
+    <a href="{{ url_for('reset_pills') }}" class="btn btn-outline-secondary btn-sm me-2" onclick="return confirm('Reset all pills to pending status?')">
+      🔄 Reset Pills
+    </a>
+    <a href="{{ url_for('notification_logs') }}" class="btn btn-outline-info btn-sm">
+      📊 Logs
+    </a>
+  </div>
+</div>
+
+<!-- Notification Service Status -->
+<div class="alert alert-info mb-4">
+  <strong>Notification Services:</strong>
+  {% if email_enabled %}
+    <span class="badge bg-success">✓ Email</span>
+  {% else %}
+    <span class="badge bg-danger">✗ Email (Not Configured)</span>
+  {% endif %}
+  
+  {% if sms_enabled %}
+    <span class="badge bg-success">✓ SMS/WhatsApp</span>
+  {% else %}
+    <span class="badge bg-danger">✗ SMS/WhatsApp (Not Configured)</span>
+  {% endif %}
+</div>
 
 <table class="table table-bordered">
   <thead>
@@ -21,9 +52,20 @@
       <td>
         <ul>
           {% for pill in member.pills %}
-            <li>{{ pill.name }} at {{ pill.time }} - {{ pill.status }}</li>
+            <li>
+              <strong>{{ pill.name }}</strong> at {{ pill.time }}
+              {% if pill.status == 'pending' %}
+                <span class="badge bg-warning">⏳ Pending</span>
+              {% elif pill.status == 'notified' %}
+                <span class="badge bg-success">✓ Notified</span>
+              {% elif pill.status == 'failed' %}
+                <span class="badge bg-danger">✗ Failed</span>
+              {% else %}
+                <span class="badge bg-secondary">{{ pill.status }}</span>
+              {% endif %}
+            </li>
           {% else %}
-            <li>No pills added</li>
+            <li class="text-muted">No pills added</li>
           {% endfor %}
         </ul>
       </td>
