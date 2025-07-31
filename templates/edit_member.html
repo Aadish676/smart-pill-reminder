@@ -1,0 +1,123 @@
+{% extends "base.html" %}
+
+{% block title %}Edit {{ member.name }} - PillPal{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-lg-8 col-xl-6">
+        <div class="card">
+            <div class="card-header d-flex align-items-center">
+                <a href="{{ url_for('member_detail', member_id=member.id) }}" class="btn btn-outline-secondary me-3">
+                    <i class="bi bi-arrow-left"></i>
+                </a>
+                <h4 class="mb-0"><i class="bi bi-pencil me-2"></i>Edit {{ member.name }}</h4>
+            </div>
+            <div class="card-body">
+                <form method="POST">
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label for="name" class="form-label">Full Name *</label>
+                            <input type="text" class="form-control" id="name" name="name" 
+                                   value="{{ member.name }}" required>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label for="relation" class="form-label">Relationship *</label>
+                            <select class="form-select" id="relation" name="relation" required>
+                                <option value="">Select relationship</option>
+                                <option value="self" {% if member.relation == 'self' %}selected{% endif %}>Self</option>
+                                <option value="spouse" {% if member.relation == 'spouse' %}selected{% endif %}>Spouse</option>
+                                <option value="child" {% if member.relation == 'child' %}selected{% endif %}>Child</option>
+                                <option value="parent" {% if member.relation == 'parent' %}selected{% endif %}>Parent</option>
+                                <option value="sibling" {% if member.relation == 'sibling' %}selected{% endif %}>Sibling</option>
+                                <option value="grandparent" {% if member.relation == 'grandparent' %}selected{% endif %}>Grandparent</option>
+                                <option value="grandchild" {% if member.relation == 'grandchild' %}selected{% endif %}>Grandchild</option>
+                                <option value="other" {% if member.relation == 'other' %}selected{% endif %}>Other</option>
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label for="phone" class="form-label">Phone Number</label>
+                            <input type="tel" class="form-control" id="phone" name="phone" 
+                                   value="{{ member.phone or '' }}" placeholder="+1 (555) 123-4567">
+                            <div class="form-text">Used for SMS medication reminders</div>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label for="email" class="form-label">Email Address</label>
+                            <input type="email" class="form-control" id="email" name="email" 
+                                   value="{{ member.email or '' }}">
+                            <div class="form-text">Used for email medication reminders</div>
+                        </div>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label for="date_of_birth" class="form-label">Date of Birth</label>
+                            <input type="date" class="form-control" id="date_of_birth" name="date_of_birth" 
+                                   value="{{ member.date_of_birth.strftime('%Y-%m-%d') if member.date_of_birth else '' }}">
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label for="emergency_contact" class="form-label">Emergency Contact</label>
+                            <input type="tel" class="form-control" id="emergency_contact" name="emergency_contact" 
+                                   value="{{ member.emergency_contact or '' }}" placeholder="+1 (555) 123-4567">
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="medical_conditions" class="form-label">Medical Conditions</label>
+                        <textarea class="form-control" id="medical_conditions" name="medical_conditions" 
+                                  rows="3" placeholder="List any chronic conditions, health issues, etc.">{{ member.medical_conditions or '' }}</textarea>
+                    </div>
+                    
+                    <div class="mb-4">
+                        <label for="allergies" class="form-label">Allergies</label>
+                        <textarea class="form-control" id="allergies" name="allergies" 
+                                  rows="3" placeholder="List any drug allergies, food allergies, etc.">{{ member.allergies or '' }}</textarea>
+                    </div>
+                    
+                    <div class="d-flex gap-2">
+                        <button type="submit" class="btn btn-primary">
+                            <i class="bi bi-check-circle me-2"></i>Save Changes
+                        </button>
+                        <a href="{{ url_for('member_detail', member_id=member.id) }}" class="btn btn-outline-secondary">
+                            <i class="bi bi-x-circle me-2"></i>Cancel
+                        </a>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-lg-4 col-xl-6">
+        <div class="card">
+            <div class="card-header">
+                <h6 class="mb-0"><i class="bi bi-info-circle me-2"></i>Profile Information</h6>
+            </div>
+            <div class="card-body">
+                <div class="mb-3">
+                    <h6 class="text-primary">Current Active Medications</h6>
+                    <p class="mb-2">{{ member.medications|selectattr('is_active', 'equalto', true)|list|length }} medications</p>
+                    {% if member.medications|selectattr('is_active', 'equalto', true)|list %}
+                    <ul class="list-unstyled small">
+                        {% for medication in member.medications[:3] if medication.is_active %}
+                        <li><i class="bi bi-capsule me-1"></i>{{ medication.name }}</li>
+                        {% endfor %}
+                        {% if member.medications|selectattr('is_active', 'equalto', true)|list|length > 3 %}
+                        <li class="text-muted">... and {{ member.medications|selectattr('is_active', 'equalto', true)|list|length - 3 }} more</li>
+                        {% endif %}
+                    </ul>
+                    {% endif %}
+                </div>
+                
+                <div class="alert alert-info">
+                    <small>
+                        <i class="bi bi-lightbulb me-1"></i>
+                        <strong>Tip:</strong> Keep profile information up to date for better medication tracking and emergency situations.
+                    </small>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
