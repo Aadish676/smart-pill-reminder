@@ -1,105 +1,334 @@
 {% extends "base.html" %}
 {% block content %}
-<div class="row">
-  <div class="col-md-8">
-    <h2>Your Family Members</h2>
-  </div>
-  <div class="col-md-4 text-end">
-    <a href="{{ url_for('test_notification') }}" class="btn btn-outline-primary btn-sm me-2">
-      📱 Test Notifications
-    </a>
-    <a href="{{ url_for('reset_pills') }}" class="btn btn-outline-secondary btn-sm me-2" onclick="return confirm('Reset all pills to pending status?')">
-      🔄 Reset Pills
-    </a>
-    <a href="{{ url_for('notification_logs') }}" class="btn btn-outline-info btn-sm">
-      📊 Logs
-    </a>
+<!-- Page Header -->
+<div class="page-header">
+  <div class="row align-items-center">
+    <div class="col-md-8">
+      <h1 class="h2 mb-2">
+        <i class="fas fa-users me-3"></i>Family Care Dashboard
+      </h1>
+      <p class="text-muted mb-0">Manage your family's medication schedules and notifications</p>
+    </div>
+    <div class="col-md-4 text-end">
+      <div class="btn-group" role="group">
+        <a href="{{ url_for('test_notification') }}" class="btn btn-outline-primary btn-sm">
+          <i class="fas fa-bell me-1"></i>Test Notifications
+        </a>
+        <a href="{{ url_for('reset_pills') }}" class="btn btn-outline-secondary btn-sm" onclick="return confirm('Reset all pills to pending status?')">
+          <i class="fas fa-redo me-1"></i>Reset Pills
+        </a>
+      </div>
+    </div>
   </div>
 </div>
 
-<!-- Notification Service Status -->
-<div class="alert alert-info mb-4">
-  <strong>Notification Services:</strong>
-  {% if email_enabled %}
-    <span class="badge bg-success">✓ Email</span>
-  {% else %}
-    <span class="badge bg-danger">✗ Email (Not Configured)</span>
-  {% endif %}
-  
-  {% if sms_enabled %}
-    <span class="badge bg-success">✓ SMS/WhatsApp</span>
-  {% else %}
-    <span class="badge bg-danger">✗ SMS/WhatsApp (Not Configured)</span>
-  {% endif %}
-</div>
-
-<table class="table table-bordered">
-  <thead>
-    <tr>
-      <th>Name</th>
-      <th>Phone</th>
-      <th>Relation</th>
-      <th>Pills</th>
-      <th>Add Pill</th>
-    </tr>
-  </thead>
-  <tbody>
-    {% for member in members %}
-    <tr>
-      <td>{{ member.name }}</td>
-      <td>{{ member.phone }}</td>
-      <td>{{ member.relation }}</td>
-      <td>
-        <ul>
-          {% for pill in member.pills %}
-            <li>
-              <strong>{{ pill.name }}</strong> at {{ pill.time }}
-              {% if pill.status == 'pending' %}
-                <span class="badge bg-warning">⏳ Pending</span>
-              {% elif pill.status == 'notified' %}
-                <span class="badge bg-success">✓ Notified</span>
-              {% elif pill.status == 'failed' %}
-                <span class="badge bg-danger">✗ Failed</span>
-              {% else %}
-                <span class="badge bg-secondary">{{ pill.status }}</span>
-              {% endif %}
-            </li>
+<!-- Notification Services Status -->
+<div class="row mb-4">
+  <div class="col-md-6">
+    <div class="card h-100">
+      <div class="card-body">
+        <h5 class="card-title">
+          <i class="fas fa-cog me-2"></i>Notification Services
+        </h5>
+        <div class="d-flex gap-3">
+          {% if email_enabled %}
+            <span class="status-indicator status-enabled">
+              <i class="fas fa-envelope"></i>Email Service
+            </span>
           {% else %}
-            <li class="text-muted">No pills added</li>
-          {% endfor %}
-        </ul>
-      </td>
-      <td>
+            <span class="status-indicator status-disabled">
+              <i class="fas fa-envelope"></i>Email Service
+            </span>
+          {% endif %}
+          
+          {% if sms_enabled %}
+            <span class="status-indicator status-enabled">
+              <i class="fas fa-mobile-alt"></i>SMS/WhatsApp
+            </span>
+          {% else %}
+            <span class="status-indicator status-disabled">
+              <i class="fas fa-mobile-alt"></i>SMS/WhatsApp
+            </span>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-6">
+    <div class="card h-100">
+      <div class="card-body">
+        <h5 class="card-title">
+          <i class="fas fa-chart-bar me-2"></i>Quick Stats
+        </h5>
+        <div class="row text-center">
+          <div class="col-4">
+            <div class="fw-bold text-primary fs-4">{{ members|length }}</div>
+            <small class="text-muted">Family Members</small>
+          </div>
+          <div class="col-4">
+            <div class="fw-bold text-success fs-4">
+              {% set total_pills = 0 %}
+              {% for member in members %}
+                {% set total_pills = total_pills + member.pills|length %}
+              {% endfor %}
+              {{ total_pills }}
+            </div>
+            <small class="text-muted">Total Pills</small>
+          </div>
+          <div class="col-4">
+            <div class="fw-bold text-warning fs-4">
+              {% set pending_pills = [] %}
+              {% for member in members %}
+                {% for pill in member.pills %}
+                  {% if pill.status == 'pending' %}
+                    {% set _ = pending_pills.append(pill) %}
+                  {% endif %}
+                {% endfor %}
+              {% endfor %}
+              {{ pending_pills|length }}
+            </div>
+            <small class="text-muted">Pending</small>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Family Members Cards -->
+<div class="d-flex justify-content-between align-items-center mb-4">
+  <h3 class="mb-0">
+    <i class="fas fa-user-friends me-2"></i>Family Members
+  </h3>
+  <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addMemberModal">
+    <i class="fas fa-plus me-1"></i>Add Family Member
+  </button>
+</div>
+
+{% if members %}
+<div class="row">
+  {% for member in members %}
+  <div class="col-lg-6 col-xl-4 mb-4">
+    <div class="card h-100">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <div>
+          <h5 class="mb-0">
+            <i class="fas fa-user me-2"></i>{{ member.name }}
+          </h5>
+          <small class="text-white-50">{{ member.relation }}</small>
+        </div>
+        <div class="dropdown">
+          <button class="btn btn-sm btn-outline-light" type="button" data-bs-toggle="dropdown">
+            <i class="fas fa-ellipsis-v"></i>
+          </button>
+          <ul class="dropdown-menu">
+            <li><a class="dropdown-item" href="#" data-bs-toggle="modal" data-bs-target="#addPillModal{{ member.id }}">
+              <i class="fas fa-pills me-2"></i>Add Pill
+            </a></li>
+          </ul>
+        </div>
+      </div>
+      <div class="card-body">
+        <!-- Contact Information -->
+        <div class="mb-3">
+          <div class="d-flex align-items-center mb-2">
+            <i class="fas fa-phone text-muted me-2"></i>
+            <span class="small">{{ member.phone }}</span>
+          </div>
+          {% if member.email %}
+          <div class="d-flex align-items-center">
+            <i class="fas fa-envelope text-muted me-2"></i>
+            <span class="small">{{ member.email }}</span>
+          </div>
+          {% endif %}
+        </div>
+
+        <!-- Pills List -->
+        <div class="mb-3">
+          <h6 class="text-muted mb-2">
+            <i class="fas fa-pills me-1"></i>Medications
+          </h6>
+          {% if member.pills %}
+            {% for pill in member.pills %}
+            <div class="d-flex justify-content-between align-items-center mb-2 p-2 bg-light rounded">
+              <div>
+                <div class="fw-medium">{{ pill.name }}</div>
+                <small class="text-muted">{{ pill.time }}</small>
+              </div>
+              <div>
+                {% if pill.status == 'pending' %}
+                  <span class="badge bg-warning">
+                    <i class="fas fa-clock me-1"></i>Pending
+                  </span>
+                {% elif pill.status == 'notified' %}
+                  <span class="badge bg-success">
+                    <i class="fas fa-check me-1"></i>Notified
+                  </span>
+                {% elif pill.status == 'failed' %}
+                  <span class="badge bg-danger">
+                    <i class="fas fa-times me-1"></i>Failed
+                  </span>
+                {% else %}
+                  <span class="badge bg-secondary">{{ pill.status }}</span>
+                {% endif %}
+              </div>
+            </div>
+            {% endfor %}
+          {% else %}
+            <div class="text-center text-muted py-3">
+              <i class="fas fa-pills fa-2x mb-2 opacity-50"></i>
+              <p class="mb-0">No medications added</p>
+              <small>Click "Add Pill" to get started</small>
+            </div>
+          {% endif %}
+        </div>
+
+        <!-- Add Pill Button -->
+        <button class="btn btn-outline-primary btn-sm w-100" data-bs-toggle="modal" data-bs-target="#addPillModal{{ member.id }}">
+          <i class="fas fa-plus me-1"></i>Add Medication
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Add Pill Modal for this member -->
+  <div class="modal fade" id="addPillModal{{ member.id }}" tabindex="-1">
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title">
+            <i class="fas fa-pills me-2"></i>Add Medication for {{ member.name }}
+          </h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
         <form method="POST" action="{{ url_for('add_pill', member_id=member.id) }}">
-          <input type="text" name="pill_name" placeholder="Pill Name" required class="form-control mb-1" />
-          <input type="time" name="pill_time" required class="form-control mb-1" />
-          <button type="submit" class="btn btn-primary btn-sm">Add</button>
+          <div class="modal-body">
+            <div class="mb-3">
+              <label for="pill_name{{ member.id }}" class="form-label">Medication Name</label>
+              <input type="text" name="pill_name" id="pill_name{{ member.id }}" placeholder="e.g., Aspirin, Vitamin D" required class="form-control" />
+            </div>
+            <div class="mb-3">
+              <label for="pill_time{{ member.id }}" class="form-label">Reminder Time</label>
+              <input type="time" name="pill_time" id="pill_time{{ member.id }}" required class="form-control" />
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+            <button type="submit" class="btn btn-primary">
+              <i class="fas fa-save me-1"></i>Add Medication
+            </button>
+          </div>
         </form>
-      </td>
-    </tr>
-    {% else %}
-    <tr><td colspan="5">No family members added yet.</td></tr>
-    {% endfor %}
-  </tbody>
-</table>
+      </div>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% else %}
+<div class="text-center py-5">
+  <i class="fas fa-users fa-4x text-muted mb-3"></i>
+  <h4 class="text-muted">No Family Members Added</h4>
+  <p class="text-muted mb-4">Start by adding your first family member to manage their medications</p>
+  <button class="btn btn-primary btn-lg" data-bs-toggle="modal" data-bs-target="#addMemberModal">
+    <i class="fas fa-plus me-2"></i>Add Your First Family Member
+  </button>
+</div>
+{% endif %}
 
-<h3>Add Family Member</h3>
-<form method="POST" action="{{ url_for('add_member') }}">
-  <div class="mb-3">
-    <input type="text" name="name" placeholder="Name" required class="form-control" />
+<!-- Add Family Member Modal -->
+<div class="modal fade" id="addMemberModal" tabindex="-1">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">
+          <i class="fas fa-user-plus me-2"></i>Add Family Member
+        </h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <form method="POST" action="{{ url_for('add_member') }}">
+        <div class="modal-body">
+          <div class="row">
+            <div class="col-md-6">
+              <div class="mb-3">
+                <label for="name" class="form-label">
+                  <i class="fas fa-user me-1"></i>Full Name
+                </label>
+                <input type="text" name="name" id="name" placeholder="Enter full name" required class="form-control" />
+              </div>
+              <div class="mb-3">
+                <label for="relation" class="form-label">
+                  <i class="fas fa-heart me-1"></i>Relationship
+                </label>
+                <select name="relation" id="relation" required class="form-control">
+                  <option value="">Select relationship</option>
+                  <option value="Self">Self</option>
+                  <option value="Spouse">Spouse</option>
+                  <option value="Parent">Parent</option>
+                  <option value="Child">Child</option>
+                  <option value="Sibling">Sibling</option>
+                  <option value="Grandparent">Grandparent</option>
+                  <option value="Grandchild">Grandchild</option>
+                  <option value="Other">Other</option>
+                </select>
+              </div>
+            </div>
+            <div class="col-md-6">
+              <div class="mb-3">
+                <label for="phone" class="form-label">
+                  <i class="fas fa-phone me-1"></i>Phone Number
+                </label>
+                <input type="tel" name="phone" id="phone" placeholder="+1 (555) 123-4567" required class="form-control" />
+                <div class="form-text">For SMS/WhatsApp notifications</div>
+              </div>
+              <div class="mb-3">
+                <label for="email" class="form-label">
+                  <i class="fas fa-envelope me-1"></i>Email Address
+                  <span class="text-muted">(Optional)</span>
+                </label>
+                <input type="email" name="email" id="email" placeholder="patient@example.com" class="form-control" />
+                <div class="form-text">Patient's email for direct notifications</div>
+              </div>
+            </div>
+          </div>
+          
+          <div class="alert alert-info">
+            <i class="fas fa-info-circle me-2"></i>
+            <strong>Email Priority:</strong> If you provide a patient email, notifications will be sent directly to them. 
+            Otherwise, notifications will be sent to your caregiver email.
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+          <button type="submit" class="btn btn-primary">
+            <i class="fas fa-save me-1"></i>Add Family Member
+          </button>
+        </div>
+      </form>
+    </div>
   </div>
-  <div class="mb-3">
-    <input type="text" name="phone" placeholder="Phone Number" required class="form-control" />
-  </div>
-  <div class="mb-3">
-    <input type="text" name="relation" placeholder="Relation" required class="form-control" />
-  </div>
-  <button type="submit" class="btn btn-success">Add Member</button>
-</form>
+</div>
 
-<h3 class="mt-5">Upload Prescription (OCR)</h3>
-<form method="POST" action="{{ url_for('upload_prescription') }}" enctype="multipart/form-data">
-  <input type="file" name="prescription" accept="image/*,.pdf" required class="form-control mb-2" />
-  <button type="submit" class="btn btn-info">Upload & Extract</button>
-</form>
+<!-- OCR Upload Section -->
+<div class="card mt-5">
+  <div class="card-header">
+    <h5 class="mb-0">
+      <i class="fas fa-camera me-2"></i>Prescription Upload (OCR)
+    </h5>
+  </div>
+  <div class="card-body">
+    <p class="text-muted mb-3">Upload a prescription image to automatically extract medication information</p>
+    <form method="POST" action="{{ url_for('upload_prescription') }}" enctype="multipart/form-data">
+      <div class="row">
+        <div class="col-md-8">
+          <input type="file" name="prescription" accept="image/*,.pdf" required class="form-control" />
+        </div>
+        <div class="col-md-4">
+          <button type="submit" class="btn btn-info w-100">
+            <i class="fas fa-upload me-1"></i>Upload & Extract
+          </button>
+        </div>
+      </div>
+    </form>
+  </div>
+</div>
 {% endblock %}

@@ -84,6 +84,7 @@ class FamilyMember(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(100))
     phone = db.Column(db.String(20))
+    email = db.Column(db.String(120), nullable=True)  # Patient's email for direct notifications
     relation = db.Column(db.String(100))
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
     pills = db.relationship('Pill', backref='member', lazy=True)
@@ -134,20 +135,24 @@ def test_notification():
     results = []
 
     # Test email notification
-    if mail and current_user.email:
-        try:
-            msg = Message('Test Pill Reminder', 
-                         recipients=[current_user.email], 
-                         body=msg_body)
-            mail.send(msg)
-            results.append(f"✓ Email sent successfully to {current_user.email}")
-        except Exception as e:
-            results.append(f"✗ Email failed: {str(e)}")
-    else:
-        if not mail:
-            results.append("✗ Email service not configured (missing credentials)")
+    if mail:
+        # Prefer patient email if available, otherwise use caregiver email
+        recipient_email = member.email if member.email else current_user.email
+        recipient_label = f"{member.name} (patient)" if member.email else "caregiver"
+        
+        if recipient_email:
+            try:
+                msg = Message('Test Pill Reminder', 
+                             recipients=[recipient_email], 
+                             body=msg_body)
+                mail.send(msg)
+                results.append(f"✓ Email sent successfully to {recipient_email} ({recipient_label})")
+            except Exception as e:
+                results.append(f"✗ Email failed to {recipient_label}: {str(e)}")
         else:
-            results.append("✗ No email address found for current user")
+            results.append("✗ No email address found for patient or caregiver")
+    else:
+        results.append("✗ Email service not configured (missing credentials)")
 
     # Test SMS/WhatsApp notification
     if twilio_client and member.phone:
@@ -227,6 +232,7 @@ def logout():
 def add_member():
     name = request.form['name'].strip()
     phone = request.form['phone'].strip()
+    email = request.form.get('email', '').strip()
     relation = request.form['relation'].strip()
     
     # Validate inputs
@@ -244,13 +250,19 @@ def add_member():
         flash('Please enter a valid phone number (at least 10 digits).', 'error')
         return redirect(url_for('home'))
         
+    # Validate email if provided
+    if email and not validate_email(email):
+        flash('Please enter a valid email address for the patient.', 'error')
+        return redirect(url_for('home'))
+        
     if not relation:
         flash('Relation is required.', 'error')
         return redirect(url_for('home'))
     
     member = FamilyMember(
         name=name, 
-        phone=validated_phone, 
+        phone=validated_phone,
+        email=email if email else None,
         relation=relation, 
         user_id=current_user.id
     )
@@ -409,20 +421,29 @@ def send_reminders():
             notifications_sent = False
 
             # Send email notification
-            if mail and user.email:
-                try:
-                    msg = Message(
-                        subject='Pill Reminder - ' + pill.name,
-                        recipients=[user.email],
-                        body=msg_body
-                    )
-                    mail.send(msg)
-                    print(f"[{now}] Email sent to {user.email} for {pill.name}")
-                    log_notification(pill.id, 'email', 'sent')
-                    notifications_sent = True
-                except Exception as e:
-                    error_msg = str(e)
-                    print(f"[{now}] Email failed for {user.email}: {error_msg}")
+            if mail:
+                # Prefer patient email if available, otherwise use caregiver email
+                recipient_email = member.email if member.email else user.email
+                recipient_type = "patient" if member.email else "caregiver"
+                
+                if recipient_email:
+                    try:
+                        msg = Message(
+                            subject='💊 Pill Reminder - ' + pill.name,
+                            recipients=[recipient_email],
+                            body=msg_body
+                        )
+                        mail.send(msg)
+                        print(f"[{now}] Email sent to {recipient_email} ({recipient_type}) for {pill.name}")
+                        log_notification(pill.id, 'email', 'sent')
+                        notifications_sent = True
+                    except Exception as e:
+                        error_msg = str(e)
+                        print(f"[{now}] Email failed for {recipient_email} ({recipient_type}): {error_msg}")
+                        log_notification(pill.id, 'email', 'failed', error_msg)
+                else:
+                    error_msg = "No email address found for patient or caregiver"
+                    print(f"[{now}] {error_msg}")
                     log_notification(pill.id, 'email', 'failed', error_msg)
 
             # Send SMS/WhatsApp notification

@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="row justify-content-center">
+  <div class="col-md-6 col-lg-4">
+    <div class="card">
+      <div class="card-header text-center">
+        <h4 class="mb-0">
+          <i class="fas fa-sign-in-alt me-2"></i>Welcome Back
+        </h4>
+        <p class="text-white-50 mb-0">Sign in to your account</p>
+      </div>
+      <div class="card-body p-4">
+        <form method="POST" action="{{ url_for('login') }}">
+          <div class="mb-3">
+            <label for="email" class="form-label">
+              <i class="fas fa-envelope me-1"></i>Email Address
+            </label>
+            <input type="email" name="email" id="email" placeholder="Enter your email" required class="form-control" />
+          </div>
+          <div class="mb-4">
+            <label for="password" class="form-label">
+              <i class="fas fa-lock me-1"></i>Password
+            </label>
+            <input type="password" name="password" id="password" placeholder="Enter your password" required class="form-control" />
+          </div>
+          <button type="submit" class="btn btn-primary w-100 mb-3">
+            <i class="fas fa-sign-in-alt me-1"></i>Sign In
+          </button>
+        </form>
+        
+        <div class="text-center">
+          <div class="mb-2">
+            <a href="{{ url_for('register') }}" class="text-decoration-none">
+              <i class="fas fa-user-plus me-1"></i>Don't have an account? Register
+            </a>
+          </div>
+          <a href="{{ url_for('reset_request') }}" class="text-muted small">
+            <i class="fas fa-key me-1"></i>Forgot your password?
+          </a>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
